@@ -16,12 +16,26 @@ The platform consists of 5 main components:
 - **Admin Service**: Manages ABI and webhook registrations
 - **Dashboard**: Monitors block tracking and event processing
 
+## Structure
+.
+├── apps
+│   ├── admin-api
+│   ├── admin-ui
+│   ├── block-ingestor
+│   ├── event-handler
+│   └── webhook-dispatcher
+└── docs
+
 ## Tech Stack
-- **Backend**: Go, geth
+- **Backend**: Typescript, Nest.js, Prisma
 - **Frontend**: Typescript, Next.js, Tailwind CSS
 - **DBMS**: PostgreSQL
 - **Message Queue**: Redis
 - **Monitoring**: Grafana
+
+## Specification
+
+For detailed specifications, refer to the documents in /spec/*.md if necessary.
 
 
 ## Technology Direction
