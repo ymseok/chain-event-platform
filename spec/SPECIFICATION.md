@@ -1,6 +1,6 @@
 1. Blockchain Specifics
 
-  - Which chains? EVM-compatible only (Ethereum, Polygon, BSC, etc.)? Or also non-EVM (Solana, Cosmos)?
+  - Which chains? EVM-compatible only (Ethereum, Polygon, BSC, etc.)
   - Node connectivity? During develop, I use my localhost node using Foundry(Anvil). But at Production, I will use the third party nodes(AllthatNode)
   - Starting point? Track from latest block
 
@@ -23,7 +23,6 @@
   5. Infrastructure & Deployment
 
   - Target environment? Docker Compose for dev, Kubernetes for prod
-  - Multi-tenancy? Single-tenant 
 
   6. Admin Dashboard Scope
 
@@ -31,7 +30,9 @@
     - ABI management (upload, validate)
     - Webhook CRUD and Connection checking
     - Event history & logs
+
+  7. Real-time Metrix Dashboard
     - Real-time block tracking status
     - Analytics / metrics
-    - I will use the Grapana for real-time block tracking status and Analytics/metrics
+    - Use the Graphana tool
 

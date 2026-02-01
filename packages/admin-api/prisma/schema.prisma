@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum WebhookLogStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  applications Application[]
+
+  @@map("users")
+}
+
+// ============================================
+// APPLICATION & API KEYS
+// ============================================
+
+model Application {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeys  ApiKey[]
+  programs Program[]
+  webhooks Webhook[]
+
+  @@index([userId])
+  @@map("applications")
+}
+
+model ApiKey {
+  id            String    @id @default(uuid()) @db.Uuid
+  applicationId String    @map("application_id") @db.Uuid
+  name          String    @db.VarChar(100)
+  keyHash       String    @unique @map("key_hash") @db.VarChar(64)
+  keyPrefix     String    @map("key_prefix") @db.VarChar(8)
+  expiresAt     DateTime? @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  lastUsedAt    DateTime? @map("last_used_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+// ============================================
+// BLOCKCHAIN & SMART CONTRACTS
+// ============================================
+
+model Chain {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(50)
+  chainId   Int      @unique @map("chain_id")
+  rpcUrl    String   @map("rpc_url") @db.VarChar(500)
+  blockTime Int      @default(12) @map("block_time")
+  status    Status   @default(ACTIVE)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  programs Program[]
+
+  @@map("chains")
+}
+
+model Program {
+  id              String   @id @default(uuid()) @db.Uuid
+  applicationId   String   @map("application_id") @db.Uuid
+  chainId         Int      @map("chain_id")
+  name            String   @db.VarChar(100)
+  contractAddress String   @map("contract_address") @db.VarChar(42)
+  abi             Json
+  status          Status   @default(ACTIVE)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  chain       Chain       @relation(fields: [chainId], references: [id])
+  events      Event[]
+
+  @@unique([chainId, contractAddress])
+  @@index([applicationId])
+  @@index([chainId])
+  @@map("programs")
+}
+
+model Event {
+  id         String   @id @default(uuid()) @db.Uuid
+  programId  String   @map("program_id") @db.Uuid
+  name       String   @db.VarChar(100)
+  signature  String   @db.VarChar(66)
+  parameters Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  program       Program             @relation(fields: [programId], references: [id], onDelete: Cascade)
+  subscriptions EventSubscription[]
+
+  @@unique([programId, signature])
+  @@index([programId])
+  @@index([signature])
+  @@map("events")
+}
+
+// ============================================
+// WEBHOOKS & SUBSCRIPTIONS
+// ============================================
+
+model Webhook {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  name          String   @db.VarChar(100)
+  url           String   @db.VarChar(2048)
+  secret        String   @db.VarChar(64)
+  headers       Json?
+  retryPolicy   Json     @default("{\"maxRetries\": 5, \"retryInterval\": 1000, \"backoffMultiplier\": 2}") @map("retry_policy")
+  status        Status   @default(ACTIVE)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  application   Application         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  subscriptions EventSubscription[]
+  logs          WebhookLog[]
+
+  @@index([applicationId])
+  @@map("webhooks")
+}
+
+model EventSubscription {
+  id               String             @id @default(uuid()) @db.Uuid
+  eventId          String             @map("event_id") @db.Uuid
+  webhookId        String             @map("webhook_id") @db.Uuid
+  filterConditions Json?              @map("filter_conditions")
+  status           SubscriptionStatus @default(ACTIVE)
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  event   Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  webhook Webhook      @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  logs    WebhookLog[]
+
+  @@unique([eventId, webhookId])
+  @@index([eventId])
+  @@index([webhookId])
+  @@map("event_subscriptions")
+}
+
+// ============================================
+// LOGGING & MONITORING
+// ============================================
+
+model WebhookLog {
+  id                  String           @id @default(uuid()) @db.Uuid
+  webhookId           String           @map("webhook_id") @db.Uuid
+  eventSubscriptionId String           @map("event_subscription_id") @db.Uuid
+  eventPayload        Json             @map("event_payload")
+  requestPayload      Json             @map("request_payload")
+  responseStatus      Int?             @map("response_status")
+  responseBody        String?          @map("response_body") @db.Text
+  responseTimeMs      Int?             @map("response_time_ms")
+  attemptCount        Int              @default(1) @map("attempt_count")
+  status              WebhookLogStatus @default(PENDING)
+  errorMessage        String?          @map("error_message") @db.Text
+  succeededAt         DateTime?        @map("succeeded_at")
+  failedAt            DateTime?        @map("failed_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+
+  webhook           Webhook           @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  eventSubscription EventSubscription @relation(fields: [eventSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([eventSubscriptionId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("webhook_logs")
+}

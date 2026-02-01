@@ -1,0 +1,52 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { Program, Prisma } from '@prisma/client';
+
+@Injectable()
+export class ProgramsRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(data: Prisma.ProgramUncheckedCreateInput): Promise<Program> {
+    return this.prisma.program.create({ data });
+  }
+
+  async findById(id: string): Promise<Program | null> {
+    return this.prisma.program.findUnique({ where: { id } });
+  }
+
+  async findByIdWithEvents(id: string) {
+    return this.prisma.program.findUnique({
+      where: { id },
+      include: {
+        events: true,
+        chain: true,
+      },
+    });
+  }
+
+  async findAllByApplicationId(
+    applicationId: string,
+    skip: number,
+    take: number,
+  ): Promise<[Program[], number]> {
+    const [programs, total] = await Promise.all([
+      this.prisma.program.findMany({
+        where: { applicationId },
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: { chain: true },
+      }),
+      this.prisma.program.count({ where: { applicationId } }),
+    ]);
+    return [programs, total];
+  }
+
+  async update(id: string, data: Prisma.ProgramUpdateInput): Promise<Program> {
+    return this.prisma.program.update({ where: { id }, data });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.program.delete({ where: { id } });
+  }
+}

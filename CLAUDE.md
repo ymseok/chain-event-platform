@@ -18,7 +18,7 @@ The platform consists of 5 main components:
 
 ## Structure
 .
-├── apps
+├── packages
 │   ├── admin-api
 │   ├── admin-ui
 │   ├── block-ingestor
@@ -27,7 +27,7 @@ The platform consists of 5 main components:
 └── docs
 
 ## Tech Stack
-- **Backend**: Typescript, Nest.js, Prisma
+- **Backend**: Typescript, Nest.js, Prisma, ethers.js
 - **Frontend**: Typescript, Next.js, Tailwind CSS
 - **DBMS**: PostgreSQL
 - **Message Queue**: Redis
