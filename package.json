@@ -5,6 +5,9 @@
   "description": "Blockchain Event Aggregation & Dispatch Platform",
   "license": "MIT",
   "scripts": {
+    "docker:up": "docker compose -f packages/admin-api/docker-compose.yml up -d",
+    "docker:down": "docker compose -f packages/admin-api/docker-compose.yml down",
+    "docker:logs": "docker compose -f packages/admin-api/docker-compose.yml logs -f",
     "build": "pnpm -r build",
     "build:admin-api": "pnpm --filter admin-api build",
     "build:admin-ui": "pnpm --filter admin-ui build",
