@@ -1,3 +1,3 @@
 [submodule "packages/sample/lib/forge-std"]
-	path = packages/sample/lib/forge-std
+	path = packages/demo-contract/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
