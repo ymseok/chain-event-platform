@@ -30,12 +30,19 @@ export class WebhooksService {
       retryInterval: 1000,
       backoffMultiplier: 2,
     };
+
+    // Merge apiKey into headers as X-API-Key
+    const headers: Record<string, string> = { ...createDto.headers };
+    if (createDto.apiKey) {
+      headers['X-API-Key'] = createDto.apiKey;
+    }
+
     const webhook = await this.webhooksRepository.create({
       applicationId,
       name: createDto.name,
       url: createDto.url,
       secret,
-      headers: createDto.headers ? (createDto.headers as object) : undefined,
+      headers: Object.keys(headers).length > 0 ? (headers as object) : undefined,
       retryPolicy: retryPolicy as object,
     });
 
@@ -79,10 +86,24 @@ export class WebhooksService {
     }
 
     await this.applicationsService.validateOwnership(userId, webhook.applicationId);
+
+    // Merge apiKey into headers as X-API-Key
+    let headers = updateDto.headers;
+    if (updateDto.apiKey !== undefined) {
+      const existingHeaders = (webhook.headers as Record<string, string>) || {};
+      headers = { ...existingHeaders, ...updateDto.headers };
+      if (updateDto.apiKey) {
+        headers['X-API-Key'] = updateDto.apiKey;
+      } else {
+        // If apiKey is empty string, remove X-API-Key from headers
+        delete headers['X-API-Key'];
+      }
+    }
+
     const updated = await this.webhooksRepository.update(id, {
       name: updateDto.name,
       url: updateDto.url,
-      headers: updateDto.headers ? (updateDto.headers as object) : undefined,
+      headers: headers ? (headers as object) : undefined,
       retryPolicy: updateDto.retryPolicy ? (updateDto.retryPolicy as object) : undefined,
       status: updateDto.status as 'ACTIVE' | 'INACTIVE' | undefined,
     });

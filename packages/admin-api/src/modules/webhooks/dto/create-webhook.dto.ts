@@ -25,6 +25,11 @@ export class CreateWebhookDto {
   @IsNotEmpty()
   url!: string;
 
+  @ApiPropertyOptional({ example: 'your-api-key-here', description: 'API Key for X-API-Key header authentication' })
+  @IsString()
+  @IsOptional()
+  apiKey?: string;
+
   @ApiPropertyOptional({ example: { Authorization: 'Bearer token' } })
   @IsObject()
   @IsOptional()

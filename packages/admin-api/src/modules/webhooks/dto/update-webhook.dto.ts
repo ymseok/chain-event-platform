@@ -15,6 +15,11 @@ export class UpdateWebhookDto {
   @IsOptional()
   url?: string;
 
+  @ApiPropertyOptional({ description: 'API Key for X-API-Key header authentication' })
+  @IsString()
+  @IsOptional()
+  apiKey?: string;
+
   @ApiPropertyOptional()
   @IsObject()
   @IsOptional()

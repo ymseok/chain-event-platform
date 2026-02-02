@@ -18,7 +18,12 @@
       "Bash(source .env)",
       "Bash(forge script:*)",
       "Bash(pnpm run deploy:local:*)",
-      "Bash(pnpm --filter demo-webhook build:*)"
+      "Bash(pnpm --filter demo-webhook build:*)",
+      "Bash(pnpm --filter admin-api build:*)",
+      "Bash(pnpm --filter admin-ui build:*)",
+      "Bash(pnpm dev:admin-ui:*)",
+      "Bash(pnpm dev:demo-webhook:*)",
+      "Bash(pnpm dev:admin-api:*)"
     ]
   }
 }

@@ -20,6 +20,7 @@ import { useCreateWebhook } from '@/lib/hooks';
 const createWebhookSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   url: z.string().url('Invalid URL'),
+  apiKey: z.string().optional(),
 });
 
 type CreateWebhookForm = z.infer<typeof createWebhookSchema>;
@@ -48,7 +49,13 @@ export function CreateWebhookDialog({
 
   const onSubmit = async (data: CreateWebhookForm) => {
     try {
-      await createMutation.mutateAsync(data);
+      // Filter out empty apiKey
+      const payload = {
+        name: data.name,
+        url: data.url,
+        ...(data.apiKey && { apiKey: data.apiKey }),
+      };
+      await createMutation.mutateAsync(payload);
       toast.success('Webhook created successfully');
       reset();
       onOpenChange(false);
@@ -95,6 +102,19 @@ export function CreateWebhookDialog({
               {errors.url && (
                 <p className="text-sm text-destructive">{errors.url.message}</p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">API Key (Optional)</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder="Enter API key for X-API-Key header"
+                {...register('apiKey')}
+              />
+              <p className="text-xs text-muted-foreground">
+                If your webhook endpoint requires authentication, enter the API key here.
+                It will be sent as X-API-Key header.
+              </p>
             </div>
           </div>
           <DialogFooter>

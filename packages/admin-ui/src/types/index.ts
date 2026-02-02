@@ -248,6 +248,7 @@ export interface UpdateProgramDto {
 export interface CreateWebhookDto {
   name: string;
   url: string;
+  apiKey?: string;
   headers?: Record<string, string>;
   retryPolicy?: Partial<RetryPolicy>;
 }
@@ -255,6 +256,7 @@ export interface CreateWebhookDto {
 export interface UpdateWebhookDto {
   name?: string;
   url?: string;
+  apiKey?: string;
   headers?: Record<string, string>;
   retryPolicy?: Partial<RetryPolicy>;
   status?: Status;
