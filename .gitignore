@@ -87,3 +87,5 @@ temp/
 .cache/
 *.tsbuildinfo
 .eslintcache
+
+test.sh

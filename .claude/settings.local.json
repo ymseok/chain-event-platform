@@ -17,7 +17,8 @@
       "Bash(forge coverage:*)",
       "Bash(source .env)",
       "Bash(forge script:*)",
-      "Bash(pnpm run deploy:local:*)"
+      "Bash(pnpm run deploy:local:*)",
+      "Bash(pnpm --filter demo-webhook build:*)"
     ]
   }
 }

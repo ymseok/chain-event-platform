@@ -1,0 +1,35 @@
+#!/bin/sh
+
+API_KEY="YOUR_API_KEY"
+URL="http://localhost:3003/api/webhook"
+
+COUNT=200
+INTERVAL=1   # seconds
+
+i=1
+while [ $i -le $COUNT ]
+do
+  # 현재 timestamp (epoch seconds)
+  TIMESTAMP=$(date +%s)
+
+  # 사람이 보기 좋은 시간까지 같이 넣고 싶다면
+  # TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+
+  echo "[$i/$COUNT] sending at $TIMESTAMP"
+
+  curl -s -X POST "$URL" \
+    -H "Content-Type: application/json" \
+    -H "X-API-Key: $API_KEY" \
+    -d "{
+      \"type\": \"test\",
+      \"message\": \"Hello from webhook - ${TIMESTAMP}\",
+      \"timestamp\": $TIMESTAMP
+    }"
+
+  echo ""
+  i=$((i + 1))
+  sleep $INTERVAL
+done
+
+echo "✅ Done. Sent $COUNT requests."
+
