@@ -1,0 +1,271 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 10%;
+    --primary: 165 80% 40%;
+    --primary-foreground: 165 100% 98%;
+    --secondary: 220 15% 92%;
+    --secondary-foreground: 220 25% 20%;
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 280 70% 55%;
+    --accent-foreground: 280 100% 98%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 88%;
+    --input: 220 15% 88%;
+    --ring: 165 80% 40%;
+    --radius: 0.75rem;
+
+    /* Custom brand colors */
+    --emerald: 165 80% 40%;
+    --emerald-glow: 165 100% 50%;
+    --violet: 280 70% 55%;
+    --violet-glow: 280 100% 65%;
+    --cyber-blue: 200 100% 50%;
+  }
+
+  .dark {
+    --background: 225 25% 6%;
+    --foreground: 210 20% 92%;
+    --card: 225 25% 8%;
+    --card-foreground: 210 20% 92%;
+    --popover: 225 25% 10%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 165 80% 45%;
+    --primary-foreground: 225 25% 6%;
+    --secondary: 225 20% 14%;
+    --secondary-foreground: 210 20% 85%;
+    --muted: 225 20% 12%;
+    --muted-foreground: 220 15% 55%;
+    --accent: 280 70% 60%;
+    --accent-foreground: 225 25% 6%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 225 20% 15%;
+    --input: 225 20% 15%;
+    --ring: 165 80% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply dark;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+@layer components {
+  /* Glowing effects */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3),
+                0 0 40px hsl(var(--primary) / 0.15),
+                0 0 60px hsl(var(--primary) / 0.05);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 20px hsl(var(--accent) / 0.3),
+                0 0 40px hsl(var(--accent) / 0.15);
+  }
+
+  .glow-text {
+    text-shadow: 0 0 10px hsl(var(--primary) / 0.5),
+                 0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  /* Grid pattern background */
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .bg-grid-dense {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+
+  /* Gradient backgrounds */
+  .bg-gradient-radial {
+    background: radial-gradient(ellipse at top, hsl(var(--primary) / 0.1) 0%, transparent 50%);
+  }
+
+  .bg-gradient-mesh {
+    background:
+      radial-gradient(at 40% 20%, hsl(var(--primary) / 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsl(var(--accent) / 0.06) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, hsl(var(--primary) / 0.05) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, hsl(var(--accent) / 0.04) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsl(var(--primary) / 0.06) 0px, transparent 50%);
+  }
+
+  /* Card with subtle glow on hover */
+  .card-interactive {
+    @apply relative overflow-hidden transition-all duration-300;
+  }
+
+  .card-interactive::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.1) 0%, transparent 50%);
+  }
+
+  .card-interactive:hover::before {
+    @apply opacity-100;
+  }
+
+  .card-interactive:hover {
+    @apply border-primary/30;
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.1);
+  }
+
+  /* Status indicators with pulse */
+  .status-pulse {
+    @apply relative;
+  }
+
+  .status-pulse::after {
+    content: '';
+    @apply absolute inset-0 rounded-full animate-ping;
+    background: inherit;
+    opacity: 0.4;
+  }
+
+  /* Animated border gradient */
+  .border-gradient {
+    @apply relative;
+  }
+
+  .border-gradient::before {
+    content: '';
+    @apply absolute -inset-px rounded-[inherit] -z-10;
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .border-gradient:hover::before {
+    opacity: 1;
+  }
+
+  /* Monospace code styling */
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  /* Data visualization aesthetics */
+  .data-cell {
+    @apply font-mono text-sm tabular-nums tracking-tight;
+  }
+
+  /* Blockchain address styling */
+  .address {
+    @apply font-mono text-xs bg-muted/50 px-2 py-1 rounded border border-border/50;
+  }
+
+  /* Skeleton with shimmer */
+  .skeleton-shimmer {
+    @apply relative overflow-hidden;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.1) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}
+
+@layer utilities {
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Stagger delays for list animations */
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+}

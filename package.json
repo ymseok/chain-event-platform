@@ -7,9 +7,12 @@
   "scripts": {
     "build": "pnpm -r build",
     "build:admin-api": "pnpm --filter admin-api build",
+    "build:admin-ui": "pnpm --filter admin-ui build",
     "dev:admin-api": "pnpm --filter admin-api start:dev",
+    "dev:admin-ui": "pnpm --filter admin-ui dev",
     "test": "pnpm -r test",
     "test:admin-api": "pnpm --filter admin-api test",
+    "test:admin-ui": "pnpm --filter admin-ui test",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"packages/**/*.ts\"",
     "prisma:generate": "pnpm --filter admin-api prisma:generate",

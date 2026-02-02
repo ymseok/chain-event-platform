@@ -4,7 +4,14 @@
       "mcp__plugin_context7_context7__resolve-library-id",
       "mcp__plugin_context7_context7__query-docs",
       "Bash(pnpm run build:*)",
-      "Bash(timeout 15 pnpm start:dev:*)"
+      "Bash(timeout 15 pnpm start:dev:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm create:*)",
+      "Bash(pnpm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm build:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)"
     ]
   }
 }
