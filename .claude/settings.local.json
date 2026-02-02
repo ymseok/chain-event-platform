@@ -11,7 +11,13 @@
       "Bash(npx tsc:*)",
       "Bash(pnpm build:*)",
       "Bash(lsof:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(forge build:*)",
+      "Bash(forge test:*)",
+      "Bash(forge coverage:*)",
+      "Bash(source .env)",
+      "Bash(forge script:*)",
+      "Bash(pnpm run deploy:local:*)"
     ]
   }
 }

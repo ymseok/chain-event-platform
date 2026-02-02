@@ -72,6 +72,11 @@ coverage/
 .nyc_output/
 junit.xml
 test-results/
+lcov.info
+
+# Foundry (Solidity)
+cache/
+broadcast/
 
 # Temporary files
 tmp/

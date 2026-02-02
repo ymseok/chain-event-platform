@@ -1,0 +1,26 @@
+# Compiler files
+cache/
+out/
+
+# Ignores development broadcast logs
+broadcast/
+
+# Environment variables
+.env
+
+# Docs
+docs/
+
+# Node modules
+node_modules/
+
+# Coverage
+lcov.info
+coverage/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
