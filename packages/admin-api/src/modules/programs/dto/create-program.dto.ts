@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, MaxLength, IsInt, IsArray, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, IsInt, Matches, IsJSON } from 'class-validator';
 
 export class CreateProgramDto {
   @ApiProperty({ example: 'USDT Contract' })
@@ -18,8 +18,13 @@ export class CreateProgramDto {
   @Matches(/^0x[a-fA-F0-9]{40}$/, { message: 'Invalid Ethereum address format' })
   contractAddress!: string;
 
-  @ApiProperty({ type: 'array', example: [{ type: 'event', name: 'Transfer', inputs: [] }] })
-  @IsArray()
+  @ApiProperty({
+    type: 'string',
+    description: 'ABI as JSON string',
+    example: '[{"type":"event","name":"Transfer","inputs":[]}]'
+  })
+  @IsString()
   @IsNotEmpty()
-  abi!: unknown[];
+  @IsJSON({ message: 'ABI must be a valid JSON string' })
+  abi!: string;
 }

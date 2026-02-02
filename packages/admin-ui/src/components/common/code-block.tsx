@@ -20,13 +20,15 @@ export function CodeBlock({
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
+  const safeCode = code ?? '';
+
   const handleCopy = async () => {
-    await copyToClipboard(code);
+    await copyToClipboard(safeCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const lines = code.split('\n');
+  const lines = safeCode.split('\n');
 
   return (
     <div className={cn('relative rounded-md bg-muted', className)}>
@@ -53,7 +55,7 @@ export function CodeBlock({
                   <span className="table-cell">{line}</span>
                 </div>
               ))
-            : code}
+            : safeCode}
         </code>
       </pre>
     </div>

@@ -237,7 +237,7 @@ export interface CreateProgramDto {
   chainId: number;
   name: string;
   contractAddress: string;
-  abi: unknown;
+  abi: string;
 }
 
 export interface UpdateProgramDto {

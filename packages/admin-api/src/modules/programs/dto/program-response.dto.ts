@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Program, Event, Chain } from '@prisma/client';
 
+export class ChainResponseDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  chainId: number;
+}
+
 export class ProgramResponseDto {
   @ApiProperty()
   id: string;
@@ -26,6 +37,9 @@ export class ProgramResponseDto {
   @ApiProperty()
   updatedAt: Date;
 
+  @ApiPropertyOptional({ type: ChainResponseDto })
+  chain?: ChainResponseDto;
+
   static fromEntity(entity: Program & { chain?: Chain }): ProgramResponseDto {
     return {
       id: entity.id,
@@ -36,6 +50,9 @@ export class ProgramResponseDto {
       status: entity.status,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
+      chain: entity.chain
+        ? { id: entity.chain.id, name: entity.chain.name, chainId: entity.chain.chainId }
+        : undefined,
     };
   }
 }
@@ -58,17 +75,18 @@ export class EventResponseDto {
 }
 
 export class ProgramDetailResponseDto extends ProgramResponseDto {
+  @ApiProperty({ description: 'Contract ABI' })
+  abi: unknown;
+
   @ApiProperty({ type: [EventResponseDto] })
   events: EventResponseDto[];
-
-  @ApiPropertyOptional()
-  chain?: { id: number; name: string; chainId: number };
 
   static fromEntity(
     entity: Program & { events: Event[]; chain?: Chain },
   ): ProgramDetailResponseDto {
     return {
       ...ProgramResponseDto.fromEntity(entity),
+      abi: entity.abi,
       events: entity.events.map((e) => ({
         id: e.id,
         name: e.name,
@@ -76,9 +94,6 @@ export class ProgramDetailResponseDto extends ProgramResponseDto {
         parameters: e.parameters,
         createdAt: e.createdAt,
       })),
-      chain: entity.chain
-        ? { id: entity.chain.id, name: entity.chain.name, chainId: entity.chain.chainId }
-        : undefined,
     };
   }
 }

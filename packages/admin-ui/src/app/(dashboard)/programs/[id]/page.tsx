@@ -148,7 +148,7 @@ export default function ProgramDetailPage() {
           <CardTitle>Events</CardTitle>
         </CardHeader>
         <CardContent>
-          {!eventsLoading && events?.data.length === 0 ? (
+          {!eventsLoading && (!events?.data || events.data.length === 0) ? (
             <EmptyState
               icon={Code2}
               title="No events found"

@@ -1,10 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -13,10 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -24,7 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useCreateProgram, useChains } from '@/lib/hooks';
+import { Textarea } from '@/components/ui/textarea';
+import { useChains, useCreateProgram } from '@/lib/hooks';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { z } from 'zod';
 
 const createProgramSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -63,20 +64,76 @@ export function CreateProgramDialog({
   });
 
   const [abiError, setAbiError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const extractAbiFromFile = (content: string): unknown[] | null => {
+    try {
+      const parsed = JSON.parse(content);
+
+      // If it's already an array, use it directly
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+
+      // If it's an object with an 'abi' field that is an array, extract it
+      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.abi)) {
+        return parsed.abi;
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      const extractedAbi = extractAbiFromFile(content);
+
+      if (extractedAbi) {
+        setValue('abi', JSON.stringify(extractedAbi, null, 2), { shouldValidate: true, shouldDirty: true });
+        setAbiError(null);
+        toast.success('ABI extracted successfully');
+      } else {
+        setAbiError('Could not extract ABI. File must contain an ABI array or an object with an "abi" field.');
+        toast.error('Failed to extract ABI from file');
+      }
+    };
+    reader.onerror = () => {
+      setAbiError('Failed to read file');
+      toast.error('Failed to read file');
+    };
+    reader.readAsText(file);
+
+    // Reset file input so the same file can be uploaded again
+    event.target.value = '';
+  };
 
   const onSubmit = async (data: CreateProgramForm) => {
     setAbiError(null);
 
     let parsedAbi;
     try {
-      parsedAbi = JSON.parse(data.abi);
+      const parsed = JSON.parse(data.abi);
+
+      // Support both formats:
+      // 1. Direct ABI array: [...]
+      // 2. Full artifact with abi field: { "abi": [...], "bytecode": "...", ... }
+      if (Array.isArray(parsed)) {
+        parsedAbi = parsed;
+      } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.abi)) {
+        parsedAbi = parsed.abi;
+      } else {
+        setAbiError('Invalid ABI format. Provide an ABI array or an object with an "abi" field.');
+        return;
+      }
     } catch (e) {
       setAbiError('Invalid JSON format');
-      return;
-    }
-
-    if (!Array.isArray(parsedAbi)) {
-      setAbiError('ABI must be an array');
       return;
     }
 
@@ -85,7 +142,7 @@ export function CreateProgramDialog({
         name: data.name,
         chainId: parseInt(data.chainId),
         contractAddress: data.contractAddress,
-        abi: parsedAbi,
+        abi: JSON.stringify(parsedAbi),
       });
       toast.success('Program created successfully');
       reset();
@@ -167,13 +224,37 @@ export function CreateProgramDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="abi">ABI (JSON)</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="abi">ABI (JSON)</Label>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload ABI File
+                  </Button>
+                </div>
+              </div>
               <Textarea
                 id="abi"
-                placeholder="Paste contract ABI here..."
+                placeholder="Paste contract ABI here or upload a JSON file..."
                 className="min-h-[200px] font-mono text-sm"
-                {...register('abi')}
+                value={watch('abi') || ''}
+                onChange={(e) => setValue('abi', e.target.value, { shouldValidate: true })}
               />
+              <p className="text-xs text-muted-foreground">
+                Supports both plain ABI array and full contract artifact (with abi, bytecode, etc.). The ABI will be automatically extracted.
+              </p>
               {(errors.abi || abiError) && (
                 <p className="text-sm text-destructive">
                   {errors.abi?.message || abiError}

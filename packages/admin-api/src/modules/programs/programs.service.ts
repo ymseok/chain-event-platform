@@ -36,7 +36,15 @@ export class ProgramsService {
       throw new EntityNotFoundException('Chain', createDto.chainId);
     }
 
-    if (!AbiParserUtil.validateAbi(createDto.abi)) {
+    // Parse ABI from JSON string
+    let parsedAbi: InterfaceAbi;
+    try {
+      parsedAbi = JSON.parse(createDto.abi);
+    } catch {
+      throw new ValidationException('Invalid ABI JSON format');
+    }
+
+    if (!AbiParserUtil.validateAbi(parsedAbi)) {
       throw new ValidationException('Invalid ABI format');
     }
 
@@ -45,11 +53,11 @@ export class ProgramsService {
       chainId: createDto.chainId,
       name: createDto.name,
       contractAddress: createDto.contractAddress.toLowerCase(),
-      abi: createDto.abi as object,
+      abi: parsedAbi as object,
     });
 
     // Parse ABI and create events
-    const parsedEvents = AbiParserUtil.parseEvents(createDto.abi as InterfaceAbi);
+    const parsedEvents = AbiParserUtil.parseEvents(parsedAbi);
     await this.eventsService.createMany(program.id, parsedEvents);
 
     return ProgramResponseDto.fromEntity(program);
