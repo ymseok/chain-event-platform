@@ -162,7 +162,7 @@ export default function ApplicationOverviewPage() {
           </Button>
         </CardHeader>
         <CardContent>
-          {!keysLoading && apiKeys?.data.length === 0 ? (
+          {!keysLoading && apiKeys?.data?.length === 0 ? (
             <EmptyState
               icon={Key}
               title="No API keys"

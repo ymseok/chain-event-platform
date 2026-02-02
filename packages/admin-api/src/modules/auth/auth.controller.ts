@@ -1,10 +1,11 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
-import { Public } from '../../common/decorators';
+import { ProfileDto } from './dto/profile.dto';
+import { Public, CurrentUser } from '../../common/decorators';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -38,5 +39,14 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refresh(@Body('refreshToken') refreshToken: string): Promise<AuthResponseDto> {
     return this.authService.refreshToken(refreshToken);
+  }
+
+  @Get('profile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiResponse({ status: 200, description: 'Profile retrieved successfully', type: ProfileDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getProfile(@CurrentUser('id') userId: string): Promise<ProfileDto> {
+    return this.authService.getProfile(userId);
   }
 }
