@@ -14,7 +14,11 @@ export class ApplicationsRepository {
     return this.prisma.application.findUnique({ where: { id } });
   }
 
-  async findAllByUserId(userId: string, skip: number, take: number): Promise<[Application[], number]> {
+  async findAllByUserId(
+    userId: string,
+    skip: number,
+    take: number,
+  ): Promise<[Application[], number]> {
     const [applications, total] = await Promise.all([
       this.prisma.application.findMany({
         where: { userId },

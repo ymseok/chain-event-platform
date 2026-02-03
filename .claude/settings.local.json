@@ -23,7 +23,8 @@
       "Bash(pnpm --filter admin-ui build:*)",
       "Bash(pnpm dev:admin-ui:*)",
       "Bash(pnpm dev:demo-webhook:*)",
-      "Bash(pnpm dev:admin-api:*)"
+      "Bash(pnpm dev:admin-api:*)",
+      "Bash(npm run lint:*)"
     ]
   }
 }

@@ -14,9 +14,13 @@ export class SubscriptionsService {
     private readonly applicationsService: ApplicationsService,
   ) {}
 
-  async create(userId: string, createDto: CreateSubscriptionDto): Promise<SubscriptionResponseDto> {
-    // Validate ownership through event and webhook
-    // In a real implementation, we would validate that both event and webhook belong to the user
+  async create(
+    userId: string,
+    applicationId: string,
+    createDto: CreateSubscriptionDto,
+  ): Promise<SubscriptionResponseDto> {
+    await this.applicationsService.validateOwnership(userId, applicationId);
+
     const subscription = await this.subscriptionsRepository.create({
       eventId: createDto.eventId,
       webhookId: createDto.webhookId,

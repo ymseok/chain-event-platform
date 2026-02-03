@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, MaxLength, IsUrl, IsOptional, IsObject, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  MaxLength,
+  IsUrl,
+  IsOptional,
+  IsObject,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RetryPolicyDto {
@@ -21,11 +29,14 @@ export class CreateWebhookDto {
   name!: string;
 
   @ApiProperty({ example: 'https://api.example.com/webhook' })
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   @IsNotEmpty()
   url!: string;
 
-  @ApiPropertyOptional({ example: 'your-api-key-here', description: 'API Key for X-API-Key header authentication' })
+  @ApiPropertyOptional({
+    example: 'your-api-key-here',
+    description: 'API Key for X-API-Key header authentication',
+  })
   @IsString()
   @IsOptional()
   apiKey?: string;

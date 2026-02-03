@@ -28,10 +28,11 @@ export class ApplicationsService {
       pagination.take,
     );
 
-    return PaginatedResponseDto.create(
-      applications.map(ApplicationResponseDto.fromEntity),
-      { page: pagination.page || 1, limit: pagination.limit || 20, total },
-    );
+    return PaginatedResponseDto.create(applications.map(ApplicationResponseDto.fromEntity), {
+      page: pagination.page || 1,
+      limit: pagination.limit || 20,
+      total,
+    });
   }
 
   async findOne(userId: string, id: string): Promise<ApplicationResponseDto> {

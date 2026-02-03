@@ -20,4 +20,27 @@ export class EventsRepository {
       orderBy: { name: 'asc' },
     });
   }
+
+  async findAllByProgramIdPaginated(
+    programId: string,
+    skip: number,
+    take: number,
+  ): Promise<[Event[], number]> {
+    const [events, total] = await Promise.all([
+      this.prisma.event.findMany({
+        where: { programId },
+        skip,
+        take,
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.event.count({ where: { programId } }),
+    ]);
+    return [events, total];
+  }
+
+  async deleteByIds(ids: string[]): Promise<void> {
+    await this.prisma.event.deleteMany({
+      where: { id: { in: ids } },
+    });
+  }
 }

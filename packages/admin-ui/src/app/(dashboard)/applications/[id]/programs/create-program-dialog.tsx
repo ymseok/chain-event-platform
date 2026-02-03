@@ -147,8 +147,10 @@ export function CreateProgramDialog({
       toast.success('Program created successfully');
       reset();
       onOpenChange(false);
-    } catch (error) {
-      toast.error('Failed to create program');
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { error?: { message?: string } } } };
+      const errorMessage = axiosError.response?.data?.error?.message || 'Failed to create program';
+      toast.error(errorMessage);
     }
   };
 

@@ -112,7 +112,7 @@ export function CreateSubscriptionDialog({
                   <SelectValue placeholder="Select program" />
                 </SelectTrigger>
                 <SelectContent>
-                  {programs?.data.map((program) => (
+                  {programs?.data?.map((program) => (
                     <SelectItem key={program.id} value={program.id}>
                       {program.name}
                     </SelectItem>
@@ -137,7 +137,7 @@ export function CreateSubscriptionDialog({
                   <SelectValue placeholder="Select event" />
                 </SelectTrigger>
                 <SelectContent>
-                  {events?.data.map((event) => (
+                  {events?.data?.map((event) => (
                     <SelectItem key={event.id} value={event.id}>
                       {event.name}
                     </SelectItem>
@@ -161,7 +161,7 @@ export function CreateSubscriptionDialog({
                   <SelectValue placeholder="Select webhook" />
                 </SelectTrigger>
                 <SelectContent>
-                  {webhooks?.data.map((webhook) => (
+                  {webhooks?.data?.map((webhook) => (
                     <SelectItem key={webhook.id} value={webhook.id}>
                       {webhook.name}
                     </SelectItem>

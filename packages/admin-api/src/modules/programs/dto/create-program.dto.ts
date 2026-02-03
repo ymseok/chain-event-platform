@@ -21,7 +21,7 @@ export class CreateProgramDto {
   @ApiProperty({
     type: 'string',
     description: 'ABI as JSON string',
-    example: '[{"type":"event","name":"Transfer","inputs":[]}]'
+    example: '[{"type":"event","name":"Transfer","inputs":[]}]',
   })
   @IsString()
   @IsNotEmpty()

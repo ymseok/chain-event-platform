@@ -9,9 +9,10 @@ import { ProgramResponseDto, ProgramDetailResponseDto } from './dto/program-resp
 import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 import { AbiParserUtil } from '../../common/utils';
 import { InterfaceAbi } from 'ethers';
+import { Prisma } from '@prisma/client';
 import {
   EntityNotFoundException,
-  ForbiddenException,
+  DuplicateEntityException,
   ValidationException,
 } from '../../common/exceptions';
 
@@ -48,13 +49,27 @@ export class ProgramsService {
       throw new ValidationException('Invalid ABI format');
     }
 
-    const program = await this.programsRepository.create({
-      applicationId,
-      chainId: createDto.chainId,
-      name: createDto.name,
-      contractAddress: createDto.contractAddress.toLowerCase(),
-      abi: parsedAbi as object,
-    });
+    let program;
+    try {
+      program = await this.programsRepository.create({
+        applicationId,
+        chainId: createDto.chainId,
+        name: createDto.name,
+        contractAddress: createDto.contractAddress.toLowerCase(),
+        abi: parsedAbi as object,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new DuplicateEntityException(
+          'Program',
+          'chain and contract address combination',
+        );
+      }
+      throw error;
+    }
 
     // Parse ABI and create events
     const parsedEvents = AbiParserUtil.parseEvents(parsedAbi);
@@ -93,7 +108,11 @@ export class ProgramsService {
     return ProgramDetailResponseDto.fromEntity(program);
   }
 
-  async update(userId: string, id: string, updateDto: UpdateProgramDto): Promise<ProgramResponseDto> {
+  async update(
+    userId: string,
+    id: string,
+    updateDto: UpdateProgramDto,
+  ): Promise<ProgramResponseDto> {
     const program = await this.programsRepository.findById(id);
     if (!program) {
       throw new EntityNotFoundException('Program', id);
@@ -101,9 +120,29 @@ export class ProgramsService {
 
     await this.applicationsService.validateOwnership(userId, program.applicationId);
 
+    let parsedAbi: InterfaceAbi | undefined;
+    if (updateDto.abi) {
+      let abi: InterfaceAbi;
+      try {
+        abi = JSON.parse(updateDto.abi);
+      } catch {
+        throw new ValidationException('Invalid ABI JSON format');
+      }
+
+      if (!AbiParserUtil.validateAbi(abi)) {
+        throw new ValidationException('Invalid ABI format');
+      }
+
+      // Sync events with new ABI
+      const newEvents = AbiParserUtil.parseEvents(abi);
+      await this.eventsService.syncEvents(program.id, newEvents);
+      parsedAbi = abi;
+    }
+
     const updated = await this.programsRepository.update(id, {
       name: updateDto.name,
       status: updateDto.status as 'ACTIVE' | 'INACTIVE' | undefined,
+      ...(parsedAbi && { abi: parsedAbi as object }),
     });
     return ProgramResponseDto.fromEntity(updated);
   }

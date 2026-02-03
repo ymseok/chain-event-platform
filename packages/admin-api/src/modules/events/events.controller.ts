@@ -1,7 +1,8 @@
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Param, Query, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { EventsService } from './events.service';
 import { EventResponseDto } from './dto/event-response.dto';
+import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 
 @ApiTags('Events')
 @ApiBearerAuth()
@@ -11,11 +12,12 @@ export class EventsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all events for a program' })
-  @ApiResponse({ status: 200, description: 'List of events', type: [EventResponseDto] })
+  @ApiResponse({ status: 200, description: 'List of events' })
   async findAll(
     @Param('programId', ParseUUIDPipe) programId: string,
-  ): Promise<EventResponseDto[]> {
-    return this.eventsService.findAllByProgramId(programId);
+    @Query() pagination: PaginationQueryDto,
+  ): Promise<PaginatedResponseDto<EventResponseDto>> {
+    return this.eventsService.findAllByProgramIdPaginated(programId, pagination);
   }
 
   @Get(':id')

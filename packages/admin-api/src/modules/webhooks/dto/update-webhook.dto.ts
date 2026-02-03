@@ -1,5 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MaxLength, IsUrl, IsObject, IsEnum, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  MaxLength,
+  IsUrl,
+  IsObject,
+  IsEnum,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { RetryPolicyDto } from './create-webhook.dto';
 
@@ -11,7 +19,7 @@ export class UpdateWebhookDto {
   name?: string;
 
   @ApiPropertyOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   @IsOptional()
   url?: string;
 

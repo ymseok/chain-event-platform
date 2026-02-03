@@ -12,4 +12,9 @@ export class UpdateProgramDto {
   @IsEnum(['ACTIVE', 'INACTIVE'])
   @IsOptional()
   status?: string;
+
+  @ApiPropertyOptional({ description: 'Contract ABI (JSON string)' })
+  @IsString()
+  @IsOptional()
+  abi?: string;
 }

@@ -23,14 +23,15 @@ import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
-  @Post('subscriptions')
+  @Post('applications/:appId/subscriptions')
   @ApiOperation({ summary: 'Create an event subscription' })
   @ApiResponse({ status: 201, type: SubscriptionResponseDto })
   async create(
     @CurrentUser('id') userId: string,
+    @Param('appId', ParseUUIDPipe) applicationId: string,
     @Body() createDto: CreateSubscriptionDto,
   ): Promise<SubscriptionResponseDto> {
-    return this.subscriptionsService.create(userId, createDto);
+    return this.subscriptionsService.create(userId, applicationId, createDto);
   }
 
   @Get('applications/:appId/subscriptions')

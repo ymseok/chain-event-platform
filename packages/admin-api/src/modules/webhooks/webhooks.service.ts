@@ -79,7 +79,11 @@ export class WebhooksService {
     return WebhookResponseDto.fromEntity(webhook);
   }
 
-  async update(userId: string, id: string, updateDto: UpdateWebhookDto): Promise<WebhookResponseDto> {
+  async update(
+    userId: string,
+    id: string,
+    updateDto: UpdateWebhookDto,
+  ): Promise<WebhookResponseDto> {
     const webhook = await this.webhooksRepository.findById(id);
     if (!webhook) {
       throw new EntityNotFoundException('Webhook', id);
@@ -134,10 +138,7 @@ export class WebhooksService {
       message: 'This is a test webhook from Chain Event Platform',
     };
 
-    const signature = CryptoUtil.generateHmacSignature(
-      JSON.stringify(testPayload),
-      webhook.secret,
-    );
+    const signature = CryptoUtil.generateHmacSignature(JSON.stringify(testPayload), webhook.secret);
 
     try {
       const startTime = Date.now();
