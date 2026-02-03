@@ -1,15 +1,9 @@
 import { Interface, EventFragment, InterfaceAbi } from 'ethers';
 
-export interface ParsedEventParameter {
-  name: string;
-  type: string;
-  indexed: boolean;
-}
-
 export interface ParsedEvent {
   name: string;
   signature: string;
-  parameters: ParsedEventParameter[];
+  parameters: string; // Format: "(address from, address to, uint256 value)"
 }
 
 export class AbiParserUtil {
@@ -22,14 +16,13 @@ export class AbiParserUtil {
       const events: ParsedEvent[] = [];
 
       iface.forEachEvent((event: EventFragment) => {
+        // Convert parameters to string format: "(type1 name1, type2 name2, ...)"
+        const parameterString = this.formatEventParameters(event);
+
         events.push({
           name: event.name,
           signature: event.topicHash,
-          parameters: event.inputs.map((input) => ({
-            name: input.name,
-            type: input.type,
-            indexed: input.indexed ?? false,
-          })),
+          parameters: parameterString,
         });
       });
 
@@ -37,6 +30,17 @@ export class AbiParserUtil {
     } catch (error) {
       throw new Error(`Failed to parse ABI: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Format event parameters as string
+   * Example: "(address from, address to, uint256 value)"
+   */
+  private static formatEventParameters(event: EventFragment): string {
+    const params = event.inputs
+      .map((input) => `${input.type} ${input.name}`)
+      .join(', ');
+    return `(${params})`;
   }
 
   /**

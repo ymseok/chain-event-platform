@@ -14,8 +14,8 @@ export class EventResponseDto {
   @ApiProperty()
   signature: string;
 
-  @ApiProperty()
-  parameters: unknown;
+  @ApiProperty({ description: 'Event parameters in format: (type1 name1, type2 name2, ...)' })
+  parameters: string;
 
   @ApiProperty()
   createdAt: Date;

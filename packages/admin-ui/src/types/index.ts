@@ -74,15 +74,9 @@ export interface Event {
   programId: string;
   name: string;
   signature: string;
-  parameters: EventParameter[];
+  parameters: string; // Format: "(type1 name1, type2 name2, ...)"
   createdAt: string;
   program?: Program;
-}
-
-export interface EventParameter {
-  name: string;
-  type: string;
-  indexed: boolean;
 }
 
 // Webhook

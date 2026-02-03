@@ -15,7 +15,7 @@ export class EventsService {
         programId,
         name: e.name,
         signature: e.signature,
-        parameters: e.parameters as unknown as object,
+        parameters: e.parameters,
       })),
     );
   }

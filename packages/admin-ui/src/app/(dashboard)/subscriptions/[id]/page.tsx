@@ -112,13 +112,9 @@ export default function SubscriptionDetailPage() {
             {subscription.event?.parameters && (
               <div>
                 <p className="text-sm text-muted-foreground mb-2">Parameters</p>
-                <div className="flex flex-wrap gap-1">
-                  {subscription.event.parameters.map((param, i) => (
-                    <Badge key={i} variant="outline" className="text-xs">
-                      {param.name}: {param.type}
-                    </Badge>
-                  ))}
-                </div>
+                <code className="text-sm bg-muted px-2 py-1 rounded">
+                  {subscription.event.parameters}
+                </code>
               </div>
             )}
           </CardContent>

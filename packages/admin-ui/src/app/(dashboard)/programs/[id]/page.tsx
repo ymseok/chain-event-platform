@@ -65,13 +65,9 @@ export default function ProgramDetailPage() {
     {
       header: 'Parameters',
       cell: (event) => (
-        <div className="flex flex-wrap gap-1">
-          {event.parameters.map((param, i) => (
-            <Badge key={i} variant="outline" className="text-xs">
-              {param.name}: {param.type}
-            </Badge>
-          ))}
-        </div>
+        <code className="text-sm bg-muted px-2 py-1 rounded">
+          {event.parameters}
+        </code>
       ),
     },
   ];

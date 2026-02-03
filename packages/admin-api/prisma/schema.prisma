@@ -129,7 +129,7 @@ model Event {
   programId  String   @map("program_id") @db.Uuid
   name       String   @db.VarChar(100)
   signature  String   @db.VarChar(66)
-  parameters Json
+  parameters String   @db.VarChar(1000)
   createdAt  DateTime @default(now()) @map("created_at")
 
   program       Program             @relation(fields: [programId], references: [id], onDelete: Cascade)
