@@ -25,7 +25,8 @@
       "Bash(pnpm dev:demo-webhook:*)",
       "Bash(pnpm dev:admin-api:*)",
       "Bash(npm run lint:*)",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(tree:*)"
     ]
   }
 }

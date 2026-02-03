@@ -266,3 +266,26 @@ export interface UpdateSubscriptionDto {
   filterConditions?: FilterCondition[];
   status?: SubscriptionStatus;
 }
+
+// Chain Admin DTOs
+export interface CreateChainDto {
+  name: string;
+  chainId: number;
+  rpcUrl: string;
+  blockTime?: number;
+}
+
+export interface UpdateChainDto {
+  name?: string;
+  chainId?: number;
+  rpcUrl?: string;
+  blockTime?: number;
+  status?: Status;
+}
+
+export interface RpcCheckResult {
+  success: boolean;
+  latestBlockNumber: number | null;
+  responseTimeMs: number | null;
+  message: string;
+}

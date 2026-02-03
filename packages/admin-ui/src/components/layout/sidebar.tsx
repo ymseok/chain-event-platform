@@ -25,6 +25,11 @@ const mainNavItems = [
     href: '/applications',
     icon: AppWindow,
   },
+  {
+    title: 'Settings',
+    href: '/settings',
+    icon: Settings,
+  },
 ];
 
 const appNavItems = [
