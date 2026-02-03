@@ -6,17 +6,24 @@ import { EventSubscription, Prisma } from '@prisma/client';
 export class SubscriptionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private readonly includeRelations = {
+    event: {
+      include: { program: true },
+    },
+    webhook: true,
+  };
+
   async create(data: Prisma.EventSubscriptionUncheckedCreateInput): Promise<EventSubscription> {
     return this.prisma.eventSubscription.create({
       data,
-      include: { event: true, webhook: true },
+      include: this.includeRelations,
     });
   }
 
   async findById(id: string) {
     return this.prisma.eventSubscription.findUnique({
       where: { id },
-      include: { event: true, webhook: true },
+      include: this.includeRelations,
     });
   }
 
@@ -33,7 +40,7 @@ export class SubscriptionsRepository {
         skip,
         take,
         orderBy: { createdAt: 'desc' },
-        include: { event: true, webhook: true },
+        include: this.includeRelations,
       }),
       this.prisma.eventSubscription.count({
         where: { webhook: { applicationId } },
@@ -46,7 +53,7 @@ export class SubscriptionsRepository {
     return this.prisma.eventSubscription.update({
       where: { id },
       data,
-      include: { event: true, webhook: true },
+      include: this.includeRelations,
     });
   }
 

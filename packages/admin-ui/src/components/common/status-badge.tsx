@@ -44,8 +44,14 @@ interface StatusBadgeProps {
   showDot?: boolean;
 }
 
+const defaultConfig = {
+  label: 'Unknown',
+  className: 'bg-muted text-muted-foreground border-border',
+  dotClassName: 'bg-muted-foreground',
+};
+
 export function StatusBadge({ status, showDot = true }: StatusBadgeProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? defaultConfig;
 
   return (
     <span
