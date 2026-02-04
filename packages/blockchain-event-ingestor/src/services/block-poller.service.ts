@@ -1,9 +1,9 @@
-import { JsonRpcProvider, Log, InterfaceAbi } from 'ethers';
-import { Chain, Subscription, EventQueueMessage, SyncStatus } from '../types';
+import { InterfaceAbi, JsonRpcProvider, Log } from 'ethers';
+import { Chain, EventQueueMessage, Subscription, SyncStatus } from '../types';
 import { EventParser } from '../utils/event-parser';
-import { QueuePublisherService } from './queue-publisher.service';
 import { AdminApiService } from './admin-api.service';
 import { createLogger } from './logger.service';
+import { QueuePublisherService } from './queue-publisher.service';
 
 const logger = createLogger('BlockPoller');
 
@@ -176,7 +176,10 @@ export class BlockPollerService {
           sub.contractAddress.toLowerCase() === log.address.toLowerCase() &&
           sub.eventSignature === log.topics[0],
       );
-
+      
+      // logger about log.address and log.topics[0]
+      logger.debug(`Processing log from address ${log.address} with topic ${log.topics[0]}`);
+      
       for (const sub of matchingSubscriptions) {
         // Parse the event data using the ABI
         const parsedEvent = this.eventParser.parseLog(
