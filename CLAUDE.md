@@ -21,8 +21,7 @@ The platform consists of 5 main components:
 ├── packages
 │   ├── admin-api
 │   ├── admin-ui
-│   ├── block-ingestor
-│   ├── event-handler
+│   ├── blockchain-event-ingestor
 │   └── webhook-dispatcher
 └── docs
 

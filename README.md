@@ -15,63 +15,104 @@ Chain Event Platform acts as middleware that monitors blockchain networks and di
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                           Chain Event Platform                                    │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                   │
-│   ┌─────────────┐                                                                │
-│   │  Blockchain │                                                                │
-│   │   Network   │                                                                │
-│   └──────┬──────┘                                                                │
-│          │ RPC                                                                   │
-│          ▼                                                                       │
-│   ┌──────────────────┐     ┌─────────┐     ┌────────────────┐                   │
-│   │ Blockchain Event │────▶│  Redis  │────▶│ Event Handler  │                   │
-│   │    Ingestor      │     │ (Queue) │     │   (Processor)  │                   │
-│   └──────────────────┘     └─────────┘     └───────┬────────┘                   │
-│                                                     │                            │
-│                                                     │ Detected Events            │
-│                                                     ▼                            │
-│   ┌──────────────────┐     ┌─────────┐     ┌────────────────┐                   │
-│   │     Admin UI     │────▶│ Admin   │◀────│    Webhook     │                   │
-│   │   (Dashboard)    │     │   API   │     │   Dispatcher   │                   │
-│   └──────────────────┘     └────┬────┘     └───────┬────────┘                   │
-│                                 │                   │                            │
-│                                 │ PostgreSQL        │ HTTP POST                  │
-│                                 ▼                   ▼                            │
-│                          ┌──────────┐      ┌───────────────┐                    │
-│                          │ Database │      │   Subscriber  │                    │
-│                          │ (Config) │      │   Services    │                    │
-│                          └──────────┘      └───────────────┘                    │
-│                                                                                   │
-└──────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph External["External Systems"]
+        BC[("Blockchain Network<br/>(EVM)")]
+        SUB["Subscriber Services"]
+    end
+
+    subgraph Platform["Chain Event Platform"]
+        subgraph Ingestor["Blockchain Event Ingestor"]
+            BP["Block Poller"]
+            EH["Event Handler"]
+            BP --> EH
+        end
+
+        subgraph Storage["Data Layer"]
+            REDIS[("Redis<br/>(Queue)")]
+            PG[("PostgreSQL<br/>(Config & Logs)")]
+        end
+
+        subgraph Admin["Admin Services"]
+            API["Admin API<br/>(NestJS)"]
+            UI["Admin UI<br/>(Next.js)"]
+        end
+
+        WD["Webhook Dispatcher<br/>(NestJS)"]
+    end
+
+    %% Connections
+    BC -->|"JSON-RPC"| BP
+    EH -->|"Queue Events"| REDIS
+    REDIS -->|"Consume Events"| WD
+    WD -->|"HTTP POST"| SUB
+    WD -->|"Delivery Logs"| PG
+
+    API -->|"Config & Sync Status"| PG
+    API <-->|"Chain Config"| Ingestor
+    UI -->|"REST API"| API
+
+    %% Styling
+    classDef external fill:#f9f9f9,stroke:#999
+    classDef service fill:#e1f5fe,stroke:#01579b
+    classDef storage fill:#fff3e0,stroke:#e65100
+    classDef admin fill:#e8f5e9,stroke:#2e7d32
+
+    class BC,SUB external
+    class BP,EH,WD service
+    class REDIS,PG storage
+    class API,UI admin
 ```
 
 ### Data Flow
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              Event Processing Flow                               │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│  1. Block Ingestion          2. Event Detection         3. Webhook Dispatch     │
-│  ─────────────────          ─────────────────          ───────────────────      │
-│                                                                                  │
-│  ┌───────────┐              ┌───────────────┐          ┌─────────────────┐      │
-│  │ Blockchain│   Blocks    │ Event Handler │  Events  │    Webhook      │      │
-│  │  Ingestor │────────────▶│ - ABI Decode  │─────────▶│   Dispatcher    │      │
-│  │           │   (Redis)   │ - Event Match │  (Redis) │ - HTTP Delivery │      │
-│  └───────────┘              └───────────────┘          └────────┬────────┘      │
-│       │                           │                              │               │
-│       │ Poll blocks               │ Match subscriptions          │ POST webhook  │
-│       ▼                           ▼                              ▼               │
-│  ┌───────────┐              ┌───────────────┐          ┌─────────────────┐      │
-│  │   JSON    │              │  Registered   │          │   Subscriber    │      │
-│  │   RPC     │              │    Events     │          │    Endpoint     │      │
-│  └───────────┘              └───────────────┘          └─────────────────┘      │
-│                                                                                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    autonumber
+    participant BC as Blockchain Network
+    participant BEI as Blockchain Event Ingestor
+    participant REDIS as Redis Queue
+    participant PG as PostgreSQL
+    participant WD as Webhook Dispatcher
+    participant SUB as Subscriber Endpoint
+
+    rect rgb(240, 248, 255)
+        Note over BEI: Block Poller + Event Handler (Integrated)
+    end
+
+    %% Block Ingestion & Event Detection (inside BEI)
+    loop Every POLL_INTERVAL_MS
+        BEI->>BC: eth_getBlockByNumber (JSON-RPC)
+        BC-->>BEI: Block Data (txs, logs)
+
+        BEI->>BEI: Decode logs with registered ABIs
+        BEI->>BEI: Match against active subscriptions
+
+        alt Events Detected
+            BEI->>REDIS: LPUSH events:queue
+        end
+    end
+
+    %% Webhook Dispatch
+    loop Process Event Queue
+        WD->>REDIS: BRPOP events:queue
+        REDIS-->>WD: Event Payload
+
+        WD->>PG: Lookup webhook config
+        PG-->>WD: URL, Headers
+
+        WD->>SUB: HTTP POST (event payload)
+
+        alt Success (2xx)
+            SUB-->>WD: 200 OK
+            WD->>PG: Log delivery (success)
+        else Failure (5xx / timeout)
+            SUB-->>WD: Error
+            WD->>REDIS: Re-queue for retry
+            WD->>PG: Log delivery (failed)
+        end
+    end
 ```
 
 ### Components
@@ -85,7 +126,7 @@ Chain Event Platform acts as middleware that monitors blockchain networks and di
 | `demo-contract` | Sample ERC20 token contract for testing | - |
 | `demo-webhook` | Demo webhook receiver for testing event delivery | 3003 |
 
-> Note: `event-handler` is currently integrated within `admin-api`.
+> Note: Block polling and event detection (event-handler) are integrated within `blockchain-event-ingestor`.
 
 ## Tech Stack
 
