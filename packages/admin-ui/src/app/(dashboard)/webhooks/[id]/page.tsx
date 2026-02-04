@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Play, RefreshCcw, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Play, RefreshCcw, Pencil, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,9 +26,10 @@ import {
   useTestWebhook,
   useRetryWebhookLog,
 } from '@/lib/hooks';
-import { formatDateTime, copyToClipboard, truncateMiddle } from '@/lib/utils';
+import { formatDateTime, truncateMiddle } from '@/lib/utils';
 import type { WebhookLog, WebhookLogStatus } from '@/types';
 import type { Column } from '@/components/common/data-table';
+import { EditWebhookDialog } from './edit-webhook-dialog';
 
 export default function WebhookDetailPage() {
   const params = useParams();
@@ -39,7 +40,7 @@ export default function WebhookDetailPage() {
   const [statusFilter, setStatusFilter] = useState<WebhookLogStatus | 'ALL'>(
     'ALL'
   );
-  const [copied, setCopied] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const { data: webhook, isLoading: webhookLoading } = useWebhook(webhookId);
   const { data: logs, isLoading: logsLoading } = useWebhookLogs(
@@ -74,12 +75,19 @@ export default function WebhookDetailPage() {
     }
   };
 
-  const handleCopySecret = async () => {
-    if (webhook?.secret) {
-      await copyToClipboard(webhook.secret);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  // Get API Key from headers and mask it for display
+  const getApiKey = () => {
+    if (!webhook?.headers || !('X-API-Key' in webhook.headers)) {
+      return null;
     }
+    return webhook.headers['X-API-Key'];
+  };
+
+  const maskApiKey = (apiKey: string) => {
+    if (apiKey.length <= 8) {
+      return apiKey.substring(0, 2) + '****';
+    }
+    return apiKey.substring(0, 4) + '****' + apiKey.substring(apiKey.length - 4);
   };
 
   if (webhookLoading) {
@@ -172,6 +180,10 @@ export default function WebhookDetailPage() {
             {truncateMiddle(webhook.url, 40, 20)}
           </p>
         </div>
+        <Button variant="outline" onClick={() => setEditDialogOpen(true)}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit
+        </Button>
         <Button onClick={handleTest} disabled={testMutation.isPending}>
           <Play className="mr-2 h-4 w-4" />
           {testMutation.isPending ? 'Testing...' : 'Test'}
@@ -190,26 +202,25 @@ export default function WebhookDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Secret</CardTitle>
+            <CardTitle className="text-base">API Key</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <code className="text-sm flex-1">
-                {truncateMiddle(webhook.secret, 8, 4)}
-              </code>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={handleCopySecret}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+            {(() => {
+              const apiKey = getApiKey();
+              if (apiKey) {
+                return (
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <code className="text-sm">{maskApiKey(apiKey)}</code>
+                  </div>
+                );
+              }
+              return (
+                <span className="text-sm text-muted-foreground">
+                  Not configured
+                </span>
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -265,6 +276,12 @@ export default function WebhookDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <EditWebhookDialog
+        webhook={webhook}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
     </div>
   );
 }
