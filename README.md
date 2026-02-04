@@ -16,26 +16,76 @@ Chain Event Platform acts as middleware that monitors blockchain networks and di
 ## Architecture
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌────────────────────┐
-│  Block Ingestor │────▶│  Event Handler   │────▶│ Webhook Dispatcher │
-│  (Reads blocks) │     │ (Detects events) │     │ (Delivers events)  │
-└─────────────────┘     └──────────────────┘     └────────────────────┘
-                                                           │
-┌─────────────────┐     ┌──────────────────┐               │
-│    Admin UI     │────▶│    Admin API     │◀──────────────┘
-│   (Dashboard)   │     │ (Configuration)  │
-└─────────────────┘     └──────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                           Chain Event Platform                                    │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                   │
+│   ┌─────────────┐                                                                │
+│   │  Blockchain │                                                                │
+│   │   Network   │                                                                │
+│   └──────┬──────┘                                                                │
+│          │ RPC                                                                   │
+│          ▼                                                                       │
+│   ┌──────────────────┐     ┌─────────┐     ┌────────────────┐                   │
+│   │ Blockchain Event │────▶│  Redis  │────▶│ Event Handler  │                   │
+│   │    Ingestor      │     │ (Queue) │     │   (Processor)  │                   │
+│   └──────────────────┘     └─────────┘     └───────┬────────┘                   │
+│                                                     │                            │
+│                                                     │ Detected Events            │
+│                                                     ▼                            │
+│   ┌──────────────────┐     ┌─────────┐     ┌────────────────┐                   │
+│   │     Admin UI     │────▶│ Admin   │◀────│    Webhook     │                   │
+│   │   (Dashboard)    │     │   API   │     │   Dispatcher   │                   │
+│   └──────────────────┘     └────┬────┘     └───────┬────────┘                   │
+│                                 │                   │                            │
+│                                 │ PostgreSQL        │ HTTP POST                  │
+│                                 ▼                   ▼                            │
+│                          ┌──────────┐      ┌───────────────┐                    │
+│                          │ Database │      │   Subscriber  │                    │
+│                          │ (Config) │      │   Services    │                    │
+│                          └──────────┘      └───────────────┘                    │
+│                                                                                   │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              Event Processing Flow                               │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  1. Block Ingestion          2. Event Detection         3. Webhook Dispatch     │
+│  ─────────────────          ─────────────────          ───────────────────      │
+│                                                                                  │
+│  ┌───────────┐              ┌───────────────┐          ┌─────────────────┐      │
+│  │ Blockchain│   Blocks    │ Event Handler │  Events  │    Webhook      │      │
+│  │  Ingestor │────────────▶│ - ABI Decode  │─────────▶│   Dispatcher    │      │
+│  │           │   (Redis)   │ - Event Match │  (Redis) │ - HTTP Delivery │      │
+│  └───────────┘              └───────────────┘          └────────┬────────┘      │
+│       │                           │                              │               │
+│       │ Poll blocks               │ Match subscriptions          │ POST webhook  │
+│       ▼                           ▼                              ▼               │
+│  ┌───────────┐              ┌───────────────┐          ┌─────────────────┐      │
+│  │   JSON    │              │  Registered   │          │   Subscriber    │      │
+│  │   RPC     │              │    Events     │          │    Endpoint     │      │
+│  └───────────┘              └───────────────┘          └─────────────────┘      │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Components
 
-| Package | Description |
-|---------|-------------|
-| `admin-api` | REST API for managing applications, programs, webhooks, and subscriptions |
-| `admin-ui` | Dashboard for monitoring and configuration |
-| `block-ingestor` | Reads blocks from blockchain nodes and queues them |
-| `event-handler` | Processes queued blocks and detects registered events |
-| `webhook-dispatcher` | Delivers detected events to registered webhook endpoints |
+| Package | Description | Port |
+|---------|-------------|------|
+| `admin-api` | REST API for managing applications, programs, webhooks, and subscriptions | 3001 |
+| `admin-ui` | Dashboard for monitoring and configuration | 3002 |
+| `blockchain-event-ingestor` | Reads blocks from blockchain nodes and queues them | - |
+| `webhook-dispatcher` | Delivers detected events to registered webhook endpoints | - |
+| `demo-contract` | Sample ERC20 token contract for testing | - |
+| `demo-webhook` | Demo webhook receiver for testing event delivery | 3003 |
+
+> Note: `event-handler` is currently integrated within `admin-api`.
 
 ## Tech Stack
 
@@ -43,6 +93,7 @@ Chain Event Platform acts as middleware that monitors blockchain networks and di
 - **Frontend**: TypeScript, Next.js 14, Tailwind CSS, shadcn/ui
 - **Database**: PostgreSQL 16
 - **Message Queue**: Redis 7
+- **Smart Contracts**: Solidity, Foundry (Forge, Anvil, Cast)
 - **Containerization**: Docker, Docker Compose
 
 ## Prerequisites
@@ -67,7 +118,17 @@ cd chain-event-platform
 pnpm install
 ```
 
-### 3. Start Infrastructure Services
+### 3. Configure Environment
+
+```bash
+# Copy environment template
+cp packages/admin-api/.env.example packages/admin-api/.env
+cp packages/blockchain-event-ingestor/.env.example packages/blockchain-event-ingestor/.env
+
+# Edit configuration as needed
+```
+
+### 4. Start Infrastructure Services
 
 Start PostgreSQL and Redis using Docker Compose:
 
@@ -75,13 +136,11 @@ Start PostgreSQL and Redis using Docker Compose:
 pnpm docker:up
 ```
 
-### 4. Configure Environment
+Verify containers are running:
 
 ```bash
-# Copy environment template
-cp packages/admin-api/.env.example packages/admin-api/.env
-
-# Edit configuration as needed
+docker ps
+# Should show postgres and redis containers
 ```
 
 ### 5. Initialize Database
@@ -94,87 +153,169 @@ pnpm prisma:generate
 pnpm prisma:migrate
 ```
 
-### 6. Start Development Servers
+## Local Development Testing Guide
+
+This section provides a step-by-step guide for testing the complete event pipeline locally.
+
+### Prerequisites for Testing
+
+Ensure you have:
+- Docker running (for PostgreSQL and Redis)
+- Foundry installed (`foundryup` to install/update)
+- All dependencies installed (`pnpm install`)
+
+### Step 1: Start Infrastructure Services
 
 ```bash
-# Start Admin API (http://localhost:3000)
+# Start PostgreSQL and Redis containers
+pnpm docker:up
+
+# Verify containers are running
+docker ps
+# Expected: postgres (5432), redis (6379)
+```
+
+### Step 2: Initialize Database Schema
+
+```bash
+# Generate Prisma client and run migrations
+pnpm prisma:generate
+pnpm prisma:migrate
+
+# (Optional) Verify database with Prisma Studio
+pnpm prisma:studio
+# Opens browser at http://localhost:5555
+```
+
+### Step 3: Start Admin API
+
+```bash
+# Terminal 1: Start Admin API server
 pnpm dev:admin-api
 
-# In another terminal, start Admin UI (http://localhost:3001)
+# Wait for message: "Application is running on: http://localhost:3001"
+# API docs available at: http://localhost:3001/api/docs
+```
+
+### Step 4: Start Admin UI
+
+```bash
+# Terminal 2: Start Admin UI
 pnpm dev:admin-ui
+
+# Access at: http://localhost:3002
 ```
 
-## Local Blockchain Development with Foundry
-
-[Foundry](https://book.getfoundry.sh/) provides a fast, portable toolkit for Ethereum development. Use **Anvil** to run a local blockchain for testing event subscriptions.
-
-### Installing Foundry
+### Step 5: Start Demo Webhook Server
 
 ```bash
-# Install Foundry
-curl -L https://foundry.paradigm.xyz | bash
+# Terminal 3: Start demo webhook receiver
+pnpm dev:demo-webhook
 
-# Run foundryup to install the latest version
-foundryup
+# Access at: http://localhost:3003
+# Generate an API Key from the dashboard (save it for later)
 ```
 
-### Running Local Blockchain with Anvil
+### Step 6: Start Local Blockchain (Anvil)
 
 ```bash
-# Start a local Ethereum node
-anvil
+# Terminal 4: Start Anvil local blockchain
+cd packages/demo-contract
+pnpm anvil
 
-# With custom options
-anvil --port 8545 --chain-id 31337 --block-time 2
+# Anvil starts with:
+# - RPC URL: http://127.0.0.1:8545
+# - Chain ID: 31337
+# - Pre-funded test accounts (10,000 ETH each)
 ```
 
-Default Anvil configuration:
-- RPC URL: `http://127.0.0.1:8545`
-- Chain ID: `31337`
-- Pre-funded accounts with 10,000 ETH each
-
-### Deploying Test Contracts
-
-Use Forge to compile and deploy contracts for testing:
+### Step 7: Deploy SampleToken Contract
 
 ```bash
-# Create a new Foundry project (if needed)
-forge init contracts
+# Terminal 5: Deploy the test ERC20 contract
+cd packages/demo-contract
+pnpm deploy:local
 
-# Compile contracts
-cd contracts && forge build
-
-# Deploy to local Anvil instance
-forge create --rpc-url http://127.0.0.1:8545 \
-  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-  src/YourContract.sol:YourContract
+# Expected output shows deployed contract address:
+# "SampleToken deployed at: 0x5FbDB2315678afecb367f032d93F642f64180aa3"
 ```
 
-### Testing Event Subscriptions Locally
+### Step 8: Configure via Admin UI
 
-1. Start Anvil local blockchain
-2. Deploy your smart contract
-3. Register the contract program in Admin UI with the contract's ABI
-4. Create a webhook endpoint (use [webhook.site](https://webhook.site) for testing)
-5. Subscribe to specific events
-6. Interact with the contract to emit events
-7. Verify webhook delivery in the dashboard
+Open http://localhost:3002 in your browser and perform the following:
 
-### Cast Commands for Testing
+#### 8.1 Create Application
+1. Navigate to **Applications** menu
+2. Click **Create Application**
+3. Fill in application name and description
+4. Save the created application
+
+#### 8.2 Register Program (Smart Contract ABI)
+1. Navigate to **Programs** menu
+2. Click **Register Program**
+3. Enter contract address: `0x5FbDB2315678afecb367f032d93F642f64180aa3`
+4. Upload ABI file: `packages/demo-contract/out/SampleToken.sol/SampleToken.json`
+5. Select the application created in step 8.1
+
+#### 8.3 Register Webhook
+1. Navigate to **Webhooks** menu
+2. Click **Create Webhook**
+3. Enter webhook URL: `http://localhost:3003/api/webhook`
+4. Add header: `x-api-key` with the API key from Step 5
+5. Save the webhook configuration
+
+#### 8.4 Create Subscription
+1. Navigate to **Subscriptions** menu
+2. Click **Create Subscription**
+3. Select the registered program
+4. Select event type (e.g., `Transfer` or `Approval`)
+5. Select the webhook to receive events
+6. Activate the subscription
+
+### Step 9: Start Event Processing Services
 
 ```bash
-# Send a transaction to trigger events
-cast send <CONTRACT_ADDRESS> "yourFunction()" \
-  --rpc-url http://127.0.0.1:8545 \
-  --private-key <PRIVATE_KEY>
+# Terminal 6: Start Blockchain Event Ingestor
+pnpm dev:blockchain-event-ingestor
 
-# Read contract state
-cast call <CONTRACT_ADDRESS> "yourViewFunction()" \
-  --rpc-url http://127.0.0.1:8545
-
-# Get current block number
-cast block-number --rpc-url http://127.0.0.1:8545
+# Terminal 7: Start Webhook Dispatcher
+pnpm dev:webhook-dispatcher
 ```
+
+### Step 10: Generate Test Events
+
+Execute test scripts to generate blockchain events:
+
+```bash
+cd packages/demo-contract/ext_script
+
+# Test Transfer event
+./transfer.sh
+# Transfers 1 token from account[0] to account[1]
+
+# Test Approval event
+./approve.sh
+# Approves account[1] to spend tokens on behalf of account[0]
+```
+
+### Step 11: Verify Event Delivery
+
+1. Open **Demo Webhook** dashboard: http://localhost:3003
+2. Check the **Event Log** for incoming webhook requests
+3. Verify:
+   - Event type matches (Transfer/Approval)
+   - Payload contains correct event data
+   - Timestamp is recent
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Database connection error | Verify PostgreSQL is running: `docker ps` |
+| Redis connection error | Verify Redis is running: `docker ps` |
+| Contract deployment fails | Ensure Anvil is running on port 8545 |
+| No events received | Check subscription is active in Admin UI |
+| Webhook delivery fails | Verify demo-webhook is running and API key is correct |
 
 ## Available Scripts
 
@@ -185,6 +326,9 @@ cast block-number --rpc-url http://127.0.0.1:8545
 | `pnpm docker:logs` | View container logs |
 | `pnpm dev:admin-api` | Start Admin API in development mode |
 | `pnpm dev:admin-ui` | Start Admin UI in development mode |
+| `pnpm dev:demo-webhook` | Start Demo Webhook server |
+| `pnpm dev:blockchain-event-ingestor` | Start Block Ingestor |
+| `pnpm dev:webhook-dispatcher` | Start Webhook Dispatcher |
 | `pnpm build` | Build all packages |
 | `pnpm test` | Run tests across all packages |
 | `pnpm lint` | Lint all packages |
@@ -200,7 +344,7 @@ cast block-number --rpc-url http://127.0.0.1:8545
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NODE_ENV` | Environment mode | `development` |
-| `PORT` | Server port | `3000` |
+| `PORT` | Server port | `3001` |
 | `DATABASE_URL` | PostgreSQL connection string | - |
 | `REDIS_HOST` | Redis host | `localhost` |
 | `REDIS_PORT` | Redis port | `6379` |
@@ -209,27 +353,73 @@ cast block-number --rpc-url http://127.0.0.1:8545
 | `JWT_REFRESH_SECRET` | Refresh token secret | - |
 | `JWT_REFRESH_EXPIRES_IN` | Refresh token expiration | `7d` |
 
+### Blockchain Event Ingestor
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `RPC_URL` | Blockchain RPC endpoint | `http://127.0.0.1:8545` |
+| `REDIS_HOST` | Redis host | `localhost` |
+| `REDIS_PORT` | Redis port | `6379` |
+| `ADMIN_API_URL` | Admin API URL for configuration | `http://localhost:3001` |
+
 ## Project Structure
 
 ```
 chain-event-platform/
 ├── packages/
-│   ├── admin-api/          # NestJS backend API
+│   ├── admin-api/                 # NestJS backend API
 │   │   ├── src/
-│   │   │   ├── modules/    # Feature modules
-│   │   │   ├── common/     # Shared utilities
-│   │   │   └── prisma/     # Database schema
-│   │   └── docker-compose.yml
-│   ├── admin-ui/           # Next.js dashboard
+│   │   │   ├── modules/           # Feature modules
+│   │   │   │   ├── applications/  # Application management
+│   │   │   │   ├── programs/      # Smart contract ABI registry
+│   │   │   │   ├── webhooks/      # Webhook configuration
+│   │   │   │   ├── subscriptions/ # Event subscriptions
+│   │   │   │   ├── events/        # Event processing
+│   │   │   │   ├── auth/          # Authentication
+│   │   │   │   └── ...
+│   │   │   ├── common/            # Shared utilities
+│   │   │   ├── database/          # Prisma setup
+│   │   │   └── redis/             # Redis client
+│   │   ├── prisma/                # Database schema
+│   │   └── docker-compose.yml     # Infrastructure services
+│   │
+│   ├── admin-ui/                  # Next.js dashboard
 │   │   ├── src/
-│   │   │   ├── app/        # App router pages
-│   │   │   ├── components/ # React components
-│   │   │   └── lib/        # Utilities & hooks
-│   ├── block-ingestor/     # Block reader service
-│   ├── event-handler/      # Event processor service
-│   └── webhook-dispatcher/ # Webhook delivery service
-├── docs/                   # Documentation
-└── spec/                   # Specifications
+│   │   │   ├── app/               # App router pages
+│   │   │   ├── components/        # React components
+│   │   │   └── lib/               # Utilities & hooks
+│   │   └── ...
+│   │
+│   ├── blockchain-event-ingestor/ # Block reader service
+│   │   ├── src/
+│   │   │   ├── services/          # Core services
+│   │   │   ├── config/            # Configuration
+│   │   │   └── main.ts            # Entry point
+│   │   └── ...
+│   │
+│   ├── webhook-dispatcher/        # Webhook delivery service
+│   │   ├── src/
+│   │   │   ├── modules/
+│   │   │   │   └── dispatcher/    # Dispatch logic
+│   │   │   ├── common/            # Shared utilities
+│   │   │   └── main.ts            # Entry point
+│   │   └── ...
+│   │
+│   ├── demo-contract/             # Foundry smart contracts
+│   │   ├── src/                   # Solidity contracts
+│   │   ├── script/                # Deployment scripts
+│   │   ├── test/                  # Contract tests
+│   │   ├── ext_script/            # External test scripts
+│   │   └── out/                   # Compiled artifacts
+│   │
+│   └── demo-webhook/              # Webhook receiver for testing
+│       ├── src/
+│       │   └── app/               # Next.js app
+│       └── ...
+│
+├── docs/                          # Documentation
+├── spec/                          # Specifications
+└── CLAUDE.md                      # Project instructions
 ```
 
 ## API Documentation
@@ -237,7 +427,7 @@ chain-event-platform/
 Once the Admin API is running, access the Swagger documentation at:
 
 ```
-http://localhost:3000/api/docs
+http://localhost:3001/api/docs
 ```
 
 ## Contributing
