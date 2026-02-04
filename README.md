@@ -2,6 +2,8 @@
 
 A centralized blockchain event aggregation and dispatch platform that eliminates redundant blockchain tracking across services.
 
+Document(detail) : [deepwiki](https://deepwiki.com/ymseok/chain-event-platform)
+
 ## Overview
 
 Chain Event Platform acts as middleware that monitors blockchain networks and dispatches relevant events to subscriber services. Instead of each service independently tracking blockchain blocks, this platform provides a unified solution for event detection and delivery.
