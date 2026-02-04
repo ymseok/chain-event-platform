@@ -12,6 +12,7 @@ interface StatsCardProps {
     label: string;
   };
   variant?: 'default' | 'primary' | 'accent';
+  onClick?: () => void;
 }
 
 export function StatsCard({
@@ -21,13 +22,18 @@ export function StatsCard({
   icon: Icon,
   trend,
   variant = 'default',
+  onClick,
 }: StatsCardProps) {
   return (
-    <Card className={cn(
-      'card-interactive border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden',
-      variant === 'primary' && 'border-primary/30',
-      variant === 'accent' && 'border-accent/30',
-    )}>
+    <Card
+      className={cn(
+        'card-interactive border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden',
+        variant === 'primary' && 'border-primary/30',
+        variant === 'accent' && 'border-accent/30',
+        onClick && 'cursor-pointer hover:border-primary/50 transition-colors',
+      )}
+      onClick={onClick}
+    >
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-2">

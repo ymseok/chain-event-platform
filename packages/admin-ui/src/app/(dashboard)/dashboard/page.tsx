@@ -5,7 +5,7 @@ import { AppWindow, Code2, Webhook, Bell, Plus, ArrowRight, Activity, Link2, Ref
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader, StatsCard, EmptyState, StatusBadge } from '@/components/common';
-import { useApplications, useChainSyncStatuses, useTriggerIngestorRefresh } from '@/lib/hooks';
+import { useApplications, useChainSyncStatuses, useTriggerIngestorRefresh, useDashboardStats } from '@/lib/hooks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { SyncStatus } from '@/types';
@@ -29,6 +29,7 @@ function getSyncStatusInfo(status: SyncStatus) {
 export default function DashboardPage() {
   const router = useRouter();
   const { data, isLoading } = useApplications(1, 5);
+  const { data: dashboardStats, isLoading: isStatsLoading } = useDashboardStats();
   const { data: syncStatuses, isLoading: isSyncStatusLoading } = useChainSyncStatuses();
   const triggerRefresh = useTriggerIngestorRefresh();
 
@@ -41,7 +42,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isStatsLoading) {
     return (
       <div className="space-y-8">
         <Skeleton className="h-10 w-48" />
@@ -79,16 +80,17 @@ export default function DashboardPage() {
         <div className="animate-slide-up opacity-0 stagger-1" style={{ animationFillMode: 'forwards' }}>
           <StatsCard
             title="Applications"
-            value={totalApps}
+            value={dashboardStats?.applications ?? totalApps}
             icon={AppWindow}
             description="Total applications"
             variant="primary"
+            onClick={() => router.push('/applications')}
           />
         </div>
         <div className="animate-slide-up opacity-0 stagger-2" style={{ animationFillMode: 'forwards' }}>
           <StatsCard
             title="Programs"
-            value="-"
+            value={dashboardStats?.programs ?? 0}
             icon={Code2}
             description="Smart contracts tracked"
           />
@@ -96,7 +98,7 @@ export default function DashboardPage() {
         <div className="animate-slide-up opacity-0 stagger-3" style={{ animationFillMode: 'forwards' }}>
           <StatsCard
             title="Webhooks"
-            value="-"
+            value={dashboardStats?.webhooks ?? 0}
             icon={Webhook}
             description="Active endpoints"
             variant="accent"
@@ -105,7 +107,7 @@ export default function DashboardPage() {
         <div className="animate-slide-up opacity-0 stagger-4" style={{ animationFillMode: 'forwards' }}>
           <StatsCard
             title="Subscriptions"
-            value="-"
+            value={dashboardStats?.subscriptions ?? 0}
             icon={Bell}
             description="Event subscriptions"
           />

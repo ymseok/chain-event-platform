@@ -31,7 +31,9 @@
       "Bash(pnpm prisma:generate:*)",
       "Bash(pnpm -r build:*)",
       "Bash(pnpm add:*)",
-      "Bash(pnpm start:dev)"
+      "Bash(pnpm start:dev)",
+      "Bash(pnpm build:admin-api:*)",
+      "Bash(pnpm prisma generate:*)"
     ]
   }
 }

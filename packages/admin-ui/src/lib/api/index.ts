@@ -2,6 +2,7 @@ export * from './auth';
 export * from './applications';
 export * from './api-keys';
 export * from './chains';
+export * from './dashboard';
 export * from './programs';
 export * from './events';
 export * from './webhooks';
