@@ -26,7 +26,12 @@
       "Bash(pnpm dev:admin-api:*)",
       "Bash(npm run lint:*)",
       "Bash(npx prisma generate:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(readlink:*)",
+      "Bash(pnpm prisma:generate:*)",
+      "Bash(pnpm -r build:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm start:dev)"
     ]
   }
 }

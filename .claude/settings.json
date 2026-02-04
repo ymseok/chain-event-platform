@@ -3,5 +3,10 @@
     "github@claude-plugins-official": true,
     "frontend-design@claude-code-plugins": true,
     "feature-dev@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)"
+    ]
   }
 }

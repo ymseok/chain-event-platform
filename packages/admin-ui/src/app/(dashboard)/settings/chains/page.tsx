@@ -19,6 +19,7 @@ import {
   useChainsAdmin,
   useDeleteChain,
   useCheckChainRpc,
+  useTriggerIngestorRefresh,
 } from '@/lib/hooks';
 import { formatDate, truncateMiddle } from '@/lib/utils';
 import { CreateChainDialog } from './create-chain-dialog';
@@ -34,6 +35,7 @@ export default function ChainsPage() {
   const { data: chains, isLoading } = useChainsAdmin();
   const deleteMutation = useDeleteChain();
   const checkRpcMutation = useCheckChainRpc();
+  const triggerRefresh = useTriggerIngestorRefresh();
 
   const handleDelete = async () => {
     if (!chainToDelete) return;
@@ -57,10 +59,19 @@ export default function ChainsPage() {
       } else {
         toast.error(result.message);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to check RPC connection');
     } finally {
       setCheckingRpcId(null);
+    }
+  };
+
+  const handleRefreshIngestor = async () => {
+    try {
+      await triggerRefresh.mutateAsync();
+      toast.success('Refresh signal sent to ingestor');
+    } catch {
+      toast.error('Failed to send refresh signal');
     }
   };
 
@@ -86,10 +97,20 @@ export default function ChainsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Blockchain Networks</CardTitle>
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Chain
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefreshIngestor}
+              disabled={triggerRefresh.isPending}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${triggerRefresh.isPending ? 'animate-spin' : ''}`} />
+              Refresh Ingestor
+            </Button>
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Chain
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {!chains || chains.length === 0 ? (

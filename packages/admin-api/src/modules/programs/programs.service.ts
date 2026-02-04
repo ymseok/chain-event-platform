@@ -3,6 +3,7 @@ import { ProgramsRepository } from './programs.repository';
 import { ApplicationsService } from '../applications/applications.service';
 import { ChainsService } from '../chains/chains.service';
 import { EventsService } from '../events/events.service';
+import { RedisPublisherService } from '../../redis';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { UpdateProgramDto } from './dto/update-program.dto';
 import { ProgramResponseDto, ProgramDetailResponseDto } from './dto/program-response.dto';
@@ -23,6 +24,7 @@ export class ProgramsService {
     private readonly applicationsService: ApplicationsService,
     private readonly chainsService: ChainsService,
     private readonly eventsService: EventsService,
+    private readonly redisPublisher: RedisPublisherService,
   ) {}
 
   async create(
@@ -74,6 +76,9 @@ export class ProgramsService {
     // Parse ABI and create events
     const parsedEvents = AbiParserUtil.parseEvents(parsedAbi);
     await this.eventsService.createMany(program.id, parsedEvents);
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishProgramCreated();
 
     return ProgramResponseDto.fromEntity(program);
   }
@@ -144,6 +149,10 @@ export class ProgramsService {
       status: updateDto.status as 'ACTIVE' | 'INACTIVE' | undefined,
       ...(parsedAbi && { abi: parsedAbi as object }),
     });
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishProgramUpdated();
+
     return ProgramResponseDto.fromEntity(updated);
   }
 
@@ -155,6 +164,9 @@ export class ProgramsService {
 
     await this.applicationsService.validateOwnership(userId, program.applicationId);
     await this.programsRepository.delete(id);
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishProgramDeleted();
   }
 
   async toggleStatus(userId: string, id: string): Promise<ProgramResponseDto> {
@@ -167,6 +179,10 @@ export class ProgramsService {
 
     const newStatus = program.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     const updated = await this.programsRepository.update(id, { status: newStatus });
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishProgramUpdated();
+
     return ProgramResponseDto.fromEntity(updated);
   }
 }

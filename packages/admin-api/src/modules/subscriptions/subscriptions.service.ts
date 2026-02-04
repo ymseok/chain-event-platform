@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SubscriptionsRepository } from './subscriptions.repository';
 import { ApplicationsService } from '../applications/applications.service';
+import { RedisPublisherService } from '../../redis';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 import { SubscriptionResponseDto } from './dto/subscription-response.dto';
@@ -12,6 +13,7 @@ export class SubscriptionsService {
   constructor(
     private readonly subscriptionsRepository: SubscriptionsRepository,
     private readonly applicationsService: ApplicationsService,
+    private readonly redisPublisher: RedisPublisherService,
   ) {}
 
   async create(
@@ -28,6 +30,9 @@ export class SubscriptionsService {
         ? (createDto.filterConditions as object)
         : undefined,
     });
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishSubscriptionCreated();
 
     return SubscriptionResponseDto.fromEntity(subscription);
   }
@@ -76,6 +81,10 @@ export class SubscriptionsService {
         : undefined,
       status: updateDto.status as 'ACTIVE' | 'PAUSED' | undefined,
     });
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishSubscriptionUpdated();
+
     return SubscriptionResponseDto.fromEntity(updated);
   }
 
@@ -85,6 +94,9 @@ export class SubscriptionsService {
       throw new EntityNotFoundException('EventSubscription', id);
     }
     await this.subscriptionsRepository.delete(id);
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishSubscriptionDeleted();
   }
 
   async toggleStatus(userId: string, id: string): Promise<SubscriptionResponseDto> {
@@ -95,6 +107,10 @@ export class SubscriptionsService {
 
     const newStatus = subscription.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     const updated = await this.subscriptionsRepository.update(id, { status: newStatus });
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishSubscriptionUpdated();
+
     return SubscriptionResponseDto.fromEntity(updated);
   }
 }

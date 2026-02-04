@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JsonRpcProvider } from 'ethers';
 import { PrismaService } from '../../database/prisma.service';
+import { RedisPublisherService } from '../../redis';
 import {
   ChainResponseDto,
   ChainAdminResponseDto,
@@ -16,7 +17,10 @@ import {
 
 @Injectable()
 export class ChainsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisPublisher: RedisPublisherService,
+  ) {}
 
   async findAll(): Promise<ChainResponseDto[]> {
     const chains = await this.prisma.chain.findMany({
@@ -72,6 +76,9 @@ export class ChainsService {
       },
     });
 
+    // Publish config refresh signal
+    await this.redisPublisher.publishChainCreated();
+
     return ChainAdminResponseDto.fromEntity(chain);
   }
 
@@ -106,6 +113,9 @@ export class ChainsService {
       data: dto,
     });
 
+    // Publish config refresh signal
+    await this.redisPublisher.publishChainUpdated();
+
     return ChainAdminResponseDto.fromEntity(chain);
   }
 
@@ -126,6 +136,9 @@ export class ChainsService {
     }
 
     await this.prisma.chain.delete({ where: { id } });
+
+    // Publish config refresh signal
+    await this.redisPublisher.publishChainDeleted();
   }
 
   async checkRpcConnection(id: number): Promise<RpcCheckResultDto> {
@@ -147,6 +160,8 @@ export class ChainsService {
           where: { id },
           data: { status: 'ACTIVE' },
         });
+        // Publish config refresh signal when status changes
+        await this.redisPublisher.publishChainUpdated();
       }
 
       return {
@@ -159,10 +174,14 @@ export class ChainsService {
       const responseTimeMs = Date.now() - startTime;
 
       // Set chain to INACTIVE on RPC failure
-      await this.prisma.chain.update({
-        where: { id },
-        data: { status: 'INACTIVE' },
-      });
+      if (chain.status === 'ACTIVE') {
+        await this.prisma.chain.update({
+          where: { id },
+          data: { status: 'INACTIVE' },
+        });
+        // Publish config refresh signal when status changes
+        await this.redisPublisher.publishChainUpdated();
+      }
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
