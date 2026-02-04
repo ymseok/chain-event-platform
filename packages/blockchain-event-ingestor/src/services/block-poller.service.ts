@@ -7,11 +7,14 @@ import { QueuePublisherService } from './queue-publisher.service';
 
 const logger = createLogger('BlockPoller');
 
+const BATCH_SIZE = 100n;
+
 export class BlockPollerService {
   private provider: JsonRpcProvider;
   private eventParser: EventParser;
   private lastProcessedBlock: bigint = 0n;
   private isRunning = false;
+  private isCatchingUp = false;
   private pollInterval: NodeJS.Timeout | null = null;
   private statusReportInterval: NodeJS.Timeout | null = null;
 
@@ -40,20 +43,45 @@ export class BlockPollerService {
     logger.info(`Starting block poller for chain ${this.chain.name} (${this.chain.chainId})`);
 
     try {
-      // Get the latest block number to start from
-      const latestBlock = await this.provider.getBlockNumber();
-      this.lastProcessedBlock = BigInt(latestBlock);
-      logger.info(`Starting from block ${this.lastProcessedBlock} on chain ${this.chain.name}`);
+      // Get current chain's target block number (finalized with fallback to latest)
+      const latestBlockBigInt = await this.getTargetBlockNumber(true);
+
+      // Try to get last processed block from admin-api
+      const syncStatus = await this.adminApi.getSyncStatus(this.chain.id);
+
+      if (syncStatus && syncStatus.latestBlockNumber) {
+        // Resume from the last processed block
+        this.lastProcessedBlock = BigInt(syncStatus.latestBlockNumber);
+        logger.info(
+          `Resuming from block ${this.lastProcessedBlock} on chain ${this.chain.name} (latest: ${latestBlockBigInt})`,
+        );
+      } else {
+        // No previous sync status, start from latest block
+        this.lastProcessedBlock = latestBlockBigInt;
+        logger.info(
+          `No previous sync status found. Starting from latest block ${this.lastProcessedBlock} on chain ${this.chain.name}`,
+        );
+      }
+      logger.debug(`lastProcessedBlock: ${this.lastProcessedBlock}, latestBlockBigInt: ${latestBlockBigInt}`);
+
+      // Check if we need to catch up
+      const gap = latestBlockBigInt - this.lastProcessedBlock;
+      if (gap > BATCH_SIZE) {
+        this.isCatchingUp = true;
+        logger.info(
+          `Catching up ${gap} blocks on chain ${this.chain.name}. Will process in batches of ${BATCH_SIZE}.`,
+        );
+      }
 
       // Report initial status
       await this.reportStatus('SYNCING');
 
-      // Start polling
-      this.pollInterval = setInterval(() => this.poll(), this.pollIntervalMs);
+      // Start polling (use short interval when catching up)
+      this.schedulePoll();
 
       // Start status reporting
       this.statusReportInterval = setInterval(
-        () => this.reportStatus('SYNCING'),
+        () => this.reportStatus(this.isCatchingUp ? 'SYNCING' : 'SYNCED'),
         this.statusReportIntervalMs,
       );
     } catch (error) {
@@ -73,7 +101,7 @@ export class BlockPollerService {
     this.isRunning = false;
 
     if (this.pollInterval) {
-      clearInterval(this.pollInterval);
+      clearTimeout(this.pollInterval);
       this.pollInterval = null;
     }
 
@@ -96,21 +124,84 @@ export class BlockPollerService {
   }
 
   /**
+   * Get target block number (finalized block with fallback to latest)
+   */
+  private async getTargetBlockNumber(logOnFallback = false): Promise<bigint> {
+    const finalizedBlock = await this.provider.getBlock('finalized');
+
+    if (!finalizedBlock || finalizedBlock.number === 0) {
+      if (logOnFallback) {
+        logger.warn(
+          `Finalized block not available on chain ${this.chain.name}, falling back to latest block`,
+        );
+      }
+      const latestBlock = await this.provider.getBlockNumber();
+      return BigInt(latestBlock);
+    }
+
+    return BigInt(finalizedBlock.number);
+  }
+
+  /**
+   * Schedule the next poll with appropriate interval
+   */
+  private schedulePoll(): void {
+    if (!this.isRunning) return;
+
+    // Clear existing interval if any
+    if (this.pollInterval) {
+      clearTimeout(this.pollInterval);
+      this.pollInterval = null;
+    }
+
+    // Use minimal delay when catching up, otherwise use block time based interval
+    const interval = this.isCatchingUp ? 100 : this.chain.blockTime * 1000;
+
+    this.pollInterval = setTimeout(() => {
+      this.poll()
+        .catch((error) => logger.error('Poll execution failed', { error }))
+        .finally(() => this.schedulePoll());
+    }, interval);
+  }
+
+  /**
    * Poll for new blocks and process events
    */
   private async poll(): Promise<void> {
     if (!this.isRunning || this.subscriptions.length === 0) return;
 
     try {
-      const latestBlock = await this.provider.getBlockNumber();
-      const latestBlockBigInt = BigInt(latestBlock);
+      // Get target block number (finalized with fallback to latest)
+      const latestBlockBigInt = await this.getTargetBlockNumber();
 
       if (latestBlockBigInt <= this.lastProcessedBlock) {
-        return; // No new blocks
+        // No new blocks, switch to normal interval if we were catching up
+        if (this.isCatchingUp) {
+          this.isCatchingUp = false;
+          logger.info(`Chain ${this.chain.name} is now synced at block ${this.lastProcessedBlock}`);
+          await this.reportStatus('SYNCED');
+        }
+        return;
       }
 
       const fromBlock = this.lastProcessedBlock + 1n;
-      const toBlock = latestBlockBigInt;
+      const gap = latestBlockBigInt - this.lastProcessedBlock;
+
+      // Limit batch size when catching up
+      let toBlock: bigint;
+      if (gap > BATCH_SIZE) {
+        toBlock = fromBlock + BATCH_SIZE - 1n;
+        this.isCatchingUp = true;
+        logger.info(
+          `Batch processing blocks ${fromBlock} to ${toBlock} on chain ${this.chain.name} (${gap} blocks behind)`,
+        );
+      } else {
+        toBlock = latestBlockBigInt;
+        if (this.isCatchingUp) {
+          this.isCatchingUp = false;
+          logger.info(`Chain ${this.chain.name} caught up, switching to normal polling interval`);
+        }
+      }
 
       logger.debug(`Processing blocks ${fromBlock} to ${toBlock} on chain ${this.chain.name}`);
 
@@ -122,6 +213,9 @@ export class BlockPollerService {
       }
 
       this.lastProcessedBlock = toBlock;
+
+      // Report status based on sync state
+      await this.reportStatus(this.isCatchingUp ? 'SYNCING' : 'SYNCED');
     } catch (error) {
       logger.error(`Error polling blocks on chain ${this.chain.name}`, { error });
       await this.reportStatus('ERROR', error instanceof Error ? error.message : 'Unknown error');

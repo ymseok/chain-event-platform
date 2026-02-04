@@ -38,6 +38,19 @@ export interface UpdateSyncStatusRequest {
   lastError?: string;
 }
 
+export interface ChainSyncStatusResponse {
+  id: number;
+  chainId: number;
+  chainName: string;
+  networkChainId: number;
+  latestBlockNumber: string;
+  syncStatus: SyncStatus;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Redis message types
 export type ConfigRefreshType =
   | 'CHAIN_CREATED'
