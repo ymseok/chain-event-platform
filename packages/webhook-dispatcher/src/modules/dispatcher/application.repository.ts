@@ -1,0 +1,26 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+
+export interface ActiveApplication {
+  id: string;
+  name: string;
+}
+
+@Injectable()
+export class ApplicationRepository {
+  private readonly logger = new Logger(ApplicationRepository.name);
+
+  constructor(private prisma: PrismaService) {}
+
+  async findAllActive(): Promise<ActiveApplication[]> {
+    const applications = await this.prisma.application.findMany({
+      where: { status: 'ACTIVE' },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    return applications;
+  }
+}
