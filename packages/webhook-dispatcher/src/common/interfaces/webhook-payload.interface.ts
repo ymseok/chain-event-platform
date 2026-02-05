@@ -1,5 +1,6 @@
 export interface WebhookPayload {
   id: string;
+  type: 'event';
   timestamp: number;
   subscriptionId: string;
   event: {

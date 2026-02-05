@@ -35,6 +35,7 @@ export class WebhookCallerService {
   ): WebhookPayload {
     return {
       id: uuidv4(),
+      type: 'event',
       timestamp: Date.now(),
       subscriptionId: subscription.id,
       event: {
