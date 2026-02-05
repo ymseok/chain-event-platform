@@ -36,7 +36,8 @@
       "Bash(pnpm prisma generate:*)",
       "Bash(ln:*)",
       "Bash(npm run prisma:generate:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(pnpm --filter admin-ui add:*)"
     ]
   }
 }

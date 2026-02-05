@@ -304,3 +304,42 @@ export interface RpcCheckResult {
   responseTimeMs: number | null;
   message: string;
 }
+
+// Dashboard Event Statistics
+export interface DailyEventStats {
+  date: string;
+  total: number;
+  success: number;
+  failed: number;
+}
+
+export interface DailyEventStatsResponse {
+  data: DailyEventStats[];
+  days: number;
+}
+
+export interface TopApplication {
+  applicationId: string;
+  applicationName: string;
+  eventCount: number;
+}
+
+export interface TopApplicationsResponse {
+  data: TopApplication[];
+  days: number;
+  limit: number;
+}
+
+export interface CumulativeStats {
+  totalEvents: number;
+  successfulEvents: number;
+  failedEvents: number;
+  pendingEvents: number;
+  successRate: number;
+  avgResponseTimeMs: number;
+}
+
+export interface CumulativeStatsResponse {
+  data: CumulativeStats;
+  days: number;
+}
