@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { LogOut, User, Bell, Search, AppWindow, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -30,6 +31,7 @@ interface SearchResult {
 
 export function Header() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
   const { setCurrentApp } = useAppStore();
 
@@ -126,6 +128,7 @@ export function Header() {
   const handleLogout = () => {
     logout();
     setCurrentApp(null);
+    queryClient.clear();
     router.push('/login');
   };
 
