@@ -10,4 +10,7 @@ export const validationSchema = Joi.object({
   WEBHOOK_TIMEOUT_MS: Joi.number().default(10000),
   CONCURRENCY_PER_APP: Joi.number().default(5),
   BRPOP_TIMEOUT_SEC: Joi.number().default(5),
+  LEASE_TTL_SEC: Joi.number().min(10).default(30),
+  CLAIM_INTERVAL_MS: Joi.number().min(1000).default(5000),
+  INSTANCE_ID: Joi.string().optional(),
 });

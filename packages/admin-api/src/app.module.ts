@@ -9,6 +9,7 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ChainsModule } from './modules/chains/chains.module';
 import { ChainSyncStatusModule } from './modules/chain-sync-status/chain-sync-status.module';
 import { IngestorModule } from './modules/ingestor/ingestor.module';
+import { DispatcherModule } from './modules/dispatcher/dispatcher.module';
 import { RedisModule } from './redis/redis.module';
 import { ProgramsModule } from './modules/programs/programs.module';
 import { EventsModule } from './modules/events/events.module';
@@ -54,6 +55,7 @@ import { validationSchema } from './common/config/validation.schema';
     DashboardModule,
     HealthModule,
     IngestorModule,
+    DispatcherModule,
   ],
 })
 export class AppModule {}

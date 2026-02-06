@@ -14,6 +14,7 @@ import { EventQueueMessage } from '../../common/interfaces';
 import { RedisSubscriberService } from '../../redis/redis-subscriber.service';
 import { ApplicationRepository, ActiveApplication } from './application.repository';
 import { DispatcherService } from './dispatcher.service';
+import { AppClaimService } from './app-claim.service';
 
 interface ConsumerLoop {
   applicationId: string;
@@ -35,6 +36,7 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
     private applicationRepository: ApplicationRepository,
     private dispatcherService: DispatcherService,
     private redisSubscriberService: RedisSubscriberService,
+    private appClaimService: AppClaimService,
   ) {
     this.brpopTimeoutSec = this.configService.get<number>(
       'webhook.brpopTimeoutSec',
@@ -47,11 +49,25 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     this.logger.log('Initializing queue consumers...');
 
+    this.appClaimService.onAppClaimed(async (appId) => {
+      const app = await this.applicationRepository.findById(appId);
+      if (app) {
+        this.logger.log(`Claimed app ${app.name} (${appId}), starting consumer`);
+        this.startConsumer(app);
+      }
+    });
+
+    this.appClaimService.onAppReleased(async (appId) => {
+      this.logger.log(`Released app ${appId}, stopping consumer`);
+      await this.stopConsumer(appId);
+    });
+
     this.redisSubscriberService.onConfigRefresh(
       this.handleConfigRefresh.bind(this),
     );
 
-    await this.refreshApplications();
+    // Seed known apps so AppClaimService can begin claiming
+    await this.refreshKnownApps();
   }
 
   async onModuleDestroy() {
@@ -75,42 +91,28 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
       signal.type === 'FULL_REFRESH'
     ) {
       this.logger.log(
-        `Config refresh signal received: ${signal.type}, refreshing applications...`,
+        `Config refresh signal received: ${signal.type}, updating known apps...`,
       );
-      this.refreshApplications().catch((error) => {
-        this.logger.error('Failed to refresh applications', error);
+      this.refreshKnownApps().catch((error) => {
+        this.logger.error('Failed to refresh known apps', error);
       });
     }
   }
 
-  private async refreshApplications() {
+  private async refreshKnownApps() {
     const applications = await this.applicationRepository.findAllActive();
-    const activeAppIds = new Set(applications.map((app) => app.id));
-
-    for (const [appId] of this.consumers) {
-      if (!activeAppIds.has(appId)) {
-        this.logger.log(`Stopping consumer for removed application: ${appId}`);
-        await this.stopConsumer(appId);
-      }
-    }
-
-    for (const app of applications) {
-      if (!this.consumers.has(app.id)) {
-        this.logger.log(
-          `Starting consumer for new application: ${app.name} (${app.id})`,
-        );
-        this.startConsumer(app);
-      }
-    }
-
-    this.logger.log(`Active consumers: ${this.consumers.size}`);
+    this.appClaimService.setKnownApps(applications.map((app) => app.id));
   }
+
+  // ── Shared consumer logic ──
 
   private getQueueName(applicationId: string): string {
     return `${REDIS_CONSTANTS.QUEUE_PREFIX}${applicationId}`;
   }
 
   private startConsumer(app: ActiveApplication) {
+    if (this.consumers.has(app.id)) return;
+
     const redis = new Redis({
       host: this.redisHost,
       port: this.redisPort,

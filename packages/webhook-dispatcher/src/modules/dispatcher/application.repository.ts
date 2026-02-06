@@ -22,4 +22,14 @@ export class ApplicationRepository {
 
     return applications;
   }
+
+  async findById(id: string): Promise<ActiveApplication | null> {
+    return this.prisma.application.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+  }
 }

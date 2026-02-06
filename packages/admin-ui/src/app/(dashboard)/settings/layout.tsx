@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Link2, Server } from 'lucide-react';
+import { Link2, Server, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const settingsNavItems = [
@@ -17,6 +17,12 @@ const settingsNavItems = [
     href: '/settings/ingestors',
     icon: Server,
     description: 'Monitor ingestor instances',
+  },
+  {
+    title: 'Webhook Dispatchers',
+    href: '/settings/dispatchers',
+    icon: Send,
+    description: 'Monitor dispatcher instances',
   },
 ];
 

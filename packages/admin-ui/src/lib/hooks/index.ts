@@ -9,3 +9,4 @@ export * from './use-webhooks';
 export * from './use-subscriptions';
 export * from './use-webhook-logs';
 export * from './use-ingestor';
+export * from './use-dispatcher';

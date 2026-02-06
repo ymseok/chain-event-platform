@@ -1,6 +1,9 @@
 export const REDIS_CONSTANTS = {
   CONFIG_REFRESH_CHANNEL: 'config:refresh',
   QUEUE_PREFIX: 'webhook:app:',
+  DISPATCHER_INSTANCE_PREFIX: 'dispatcher:instance:',
+  DISPATCHER_CLAIM_PREFIX: 'dispatcher:claim:',
+  DISPATCHER_JOINED_CHANNEL: 'dispatcher:joined',
 } as const;
 
 export type ConfigRefreshType =

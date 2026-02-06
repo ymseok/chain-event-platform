@@ -5,6 +5,7 @@ import { WebhookLogRepository } from './webhook-log.repository';
 import { WebhookCallerService } from './webhook-caller.service';
 import { DispatcherService } from './dispatcher.service';
 import { QueueConsumerService } from './queue-consumer.service';
+import { AppClaimService } from './app-claim.service';
 
 @Module({
   providers: [
@@ -14,6 +15,7 @@ import { QueueConsumerService } from './queue-consumer.service';
     WebhookCallerService,
     DispatcherService,
     QueueConsumerService,
+    AppClaimService,
   ],
   exports: [DispatcherService],
 })

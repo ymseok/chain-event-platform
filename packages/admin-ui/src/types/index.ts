@@ -246,6 +246,23 @@ export interface RebalanceResponse {
   totalInstances: number;
 }
 
+// Dispatcher Instances
+export interface DispatcherClaimedApp {
+  appId: string;
+  appName: string;
+  leaseTtlRemaining: number;
+}
+
+export interface DispatcherInstance {
+  instanceId: string;
+  claimedApps: DispatcherClaimedApp[];
+}
+
+export interface DispatcherInstancesResponse {
+  instances: DispatcherInstance[];
+  unclaimedApps: UnclaimedApp[];
+}
+
 // API Error
 export interface ApiError {
   statusCode: number;
