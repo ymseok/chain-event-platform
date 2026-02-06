@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { WebhookLogsRepository } from './webhook-logs.repository';
 import { WebhookLogQueryDto } from './dto/webhook-log-query.dto';
-import { WebhookLogResponseDto } from './dto/webhook-log-response.dto';
+import { WebhookLogResponseDto, WebhookDailyStatsDto } from './dto/webhook-log-response.dto';
 import { PaginatedResponseDto } from '../../common/dto';
 import { EntityNotFoundException } from '../../common/exceptions';
 
@@ -58,5 +58,10 @@ export class WebhookLogsService {
     // In a real implementation, this would queue a retry job
     // For now, we just return a success message
     return { message: 'Retry has been queued' };
+  }
+
+  async getDailyStats(webhookId: string, days = 30): Promise<WebhookDailyStatsDto[]> {
+    const stats = await this.webhookLogsRepository.getDailyStatsByWebhookId(webhookId, days);
+    return stats.map(WebhookDailyStatsDto.fromRaw);
   }
 }

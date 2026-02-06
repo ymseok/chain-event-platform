@@ -6,6 +6,7 @@ import {
   updateWebhook,
   deleteWebhook,
   testWebhook,
+  healthCheckWebhook,
 } from '@/lib/api/webhooks';
 import type { CreateWebhookDto, UpdateWebhookDto } from '@/types';
 
@@ -72,5 +73,11 @@ export function useDeleteWebhook() {
 export function useTestWebhook() {
   return useMutation({
     mutationFn: (id: string) => testWebhook(id),
+  });
+}
+
+export function useHealthCheckWebhook() {
+  return useMutation({
+    mutationFn: (id: string) => healthCheckWebhook(id),
   });
 }

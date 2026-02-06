@@ -81,4 +81,14 @@ export class WebhooksController {
   ): Promise<WebhookTestResultDto> {
     return this.webhooksService.test(userId, id);
   }
+
+  @Get('webhooks/:id/health')
+  @ApiOperation({ summary: 'Check webhook endpoint health' })
+  @ApiResponse({ status: 200, type: WebhookTestResultDto })
+  async healthCheck(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<WebhookTestResultDto> {
+    return this.webhooksService.healthCheck(userId, id);
+  }
 }

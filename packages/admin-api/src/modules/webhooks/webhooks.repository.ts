@@ -18,13 +18,18 @@ export class WebhooksRepository {
     applicationId: string,
     skip: number,
     take: number,
-  ): Promise<[Webhook[], number]> {
+  ): Promise<[(Webhook & { _count: { subscriptions: number } })[], number]> {
     const [webhooks, total] = await Promise.all([
       this.prisma.webhook.findMany({
         where: { applicationId },
         skip,
         take,
         orderBy: { createdAt: 'desc' },
+        include: {
+          _count: {
+            select: { subscriptions: true },
+          },
+        },
       }),
       this.prisma.webhook.count({ where: { applicationId } }),
     ]);

@@ -30,3 +30,23 @@ export async function retryWebhookLog(id: string): Promise<WebhookLog> {
   const response = await apiClient.post<WebhookLog>(`/webhook-logs/${id}/retry`);
   return response.data;
 }
+
+export interface WebhookDailyStats {
+  date: string;
+  total: number;
+  success: number;
+  failed: number;
+}
+
+export async function getWebhookLogStats(
+  webhookId: string,
+  days = 30
+): Promise<WebhookDailyStats[]> {
+  const response = await apiClient.get<WebhookDailyStats[]>(
+    `/webhooks/${webhookId}/logs/stats`,
+    {
+      params: { days },
+    }
+  );
+  return response.data;
+}

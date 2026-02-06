@@ -54,3 +54,10 @@ export async function testWebhook(id: string): Promise<{ success: boolean; messa
   );
   return response.data;
 }
+
+export async function healthCheckWebhook(id: string): Promise<{ success: boolean; message: string }> {
+  const response = await apiClient.get<{ success: boolean; message: string }>(
+    `/webhooks/${id}/health`
+  );
+  return response.data;
+}

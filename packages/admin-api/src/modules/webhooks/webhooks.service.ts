@@ -170,4 +170,40 @@ export class WebhooksService {
       };
     }
   }
+
+  async healthCheck(userId: string, id: string): Promise<WebhookTestResultDto> {
+    const webhook = await this.webhooksRepository.findById(id);
+    if (!webhook) {
+      throw new EntityNotFoundException('Webhook', id);
+    }
+
+    await this.applicationsService.validateOwnership(userId, webhook.applicationId);
+
+    try {
+      const startTime = Date.now();
+      const response = await fetch(webhook.url, {
+        method: 'HEAD',
+        headers: {
+          ...(webhook.headers as Record<string, string>),
+        },
+        signal: AbortSignal.timeout(
+          this.configService.get<number>('webhook.healthCheckTimeoutMs') || 3000,
+        ),
+      });
+
+      return {
+        success: response.ok,
+        statusCode: response.status,
+        responseTimeMs: Date.now() - startTime,
+        message: response.ok ? 'Endpoint is reachable' : `Endpoint returned status ${response.status}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        statusCode: null,
+        responseTimeMs: null,
+        message: `Endpoint unreachable: ${(error as Error).message}`,
+      };
+    }
+  }
 }

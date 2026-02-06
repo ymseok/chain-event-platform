@@ -1,6 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Webhook } from '@prisma/client';
 
+export class WebhookCountDto {
+  @ApiProperty()
+  subscriptions: number;
+}
+
 export class WebhookResponseDto {
   @ApiProperty()
   id: string;
@@ -29,7 +34,12 @@ export class WebhookResponseDto {
   @ApiProperty()
   updatedAt: Date;
 
-  static fromEntity(entity: Webhook): WebhookResponseDto {
+  @ApiPropertyOptional({ type: WebhookCountDto })
+  _count?: WebhookCountDto;
+
+  static fromEntity(
+    entity: Webhook & { _count?: { subscriptions: number } },
+  ): WebhookResponseDto {
     return {
       id: entity.id,
       applicationId: entity.applicationId,
@@ -40,6 +50,7 @@ export class WebhookResponseDto {
       status: entity.status,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
+      _count: entity._count,
     };
   }
 }

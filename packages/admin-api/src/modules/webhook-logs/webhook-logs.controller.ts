@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Param, Query, ParseUUIDPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Param, Query, ParseUUIDPipe, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { WebhookLogsService } from './webhook-logs.service';
 import { WebhookLogQueryDto } from './dto/webhook-log-query.dto';
-import { WebhookLogResponseDto } from './dto/webhook-log-response.dto';
+import { WebhookLogResponseDto, WebhookDailyStatsDto } from './dto/webhook-log-response.dto';
 import { CurrentUser } from '../../common/decorators';
 import { PaginatedResponseDto } from '../../common/dto';
 
@@ -19,6 +19,17 @@ export class WebhookLogsController {
     @Query() query: WebhookLogQueryDto,
   ): Promise<PaginatedResponseDto<WebhookLogResponseDto>> {
     return this.webhookLogsService.findByWebhookId(webhookId, query);
+  }
+
+  @Get('webhooks/:webhookId/logs/stats')
+  @ApiOperation({ summary: 'Get daily statistics for a webhook' })
+  @ApiQuery({ name: 'days', required: false, type: Number, description: 'Number of days to fetch (default: 30)' })
+  @ApiResponse({ status: 200, type: [WebhookDailyStatsDto] })
+  async getDailyStats(
+    @Param('webhookId', ParseUUIDPipe) webhookId: string,
+    @Query('days', new DefaultValuePipe(30), ParseIntPipe) days: number,
+  ): Promise<WebhookDailyStatsDto[]> {
+    return this.webhookLogsService.getDailyStats(webhookId, days);
   }
 
   @Get('subscriptions/:subscriptionId/logs')

@@ -1,5 +1,29 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WebhookLog } from '@prisma/client';
+import { WebhookDailyStats } from '../webhook-logs.repository';
+
+export class WebhookDailyStatsDto {
+  @ApiProperty()
+  date: string;
+
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty()
+  success: number;
+
+  @ApiProperty()
+  failed: number;
+
+  static fromRaw(raw: WebhookDailyStats): WebhookDailyStatsDto {
+    return {
+      date: raw.date,
+      total: raw.total,
+      success: raw.success,
+      failed: raw.failed,
+    };
+  }
+}
 
 export class WebhookLogResponseDto {
   @ApiProperty()

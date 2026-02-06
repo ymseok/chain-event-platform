@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Play, RefreshCcw, Pencil, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,18 +14,24 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   StatusBadge,
   DataTable,
   CodeBlock,
   EmptyState,
 } from '@/components/common';
+import { EventTimeSeriesChart } from '@/components/charts';
 import {
   useWebhook,
   useWebhookLogs,
+  useWebhookLogStats,
   useTestWebhook,
   useRetryWebhookLog,
 } from '@/lib/hooks';
+import { webhookLogKeys } from '@/lib/hooks/use-webhook-logs';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatDateTime, truncateMiddle } from '@/lib/utils';
 import type { WebhookLog, WebhookLogStatus } from '@/types';
 import type { Column } from '@/components/common/data-table';
@@ -34,6 +40,7 @@ import { EditWebhookDialog } from './edit-webhook-dialog';
 export default function WebhookDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const webhookId = params.id as string;
 
   const [page, setPage] = useState(1);
@@ -41,6 +48,8 @@ export default function WebhookDetailPage() {
     'ALL'
   );
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data: webhook, isLoading: webhookLoading } = useWebhook(webhookId);
   const { data: logs, isLoading: logsLoading } = useWebhookLogs(
@@ -49,8 +58,34 @@ export default function WebhookDetailPage() {
     20,
     statusFilter === 'ALL' ? undefined : statusFilter
   );
+  const { data: statsData, isLoading: statsLoading } = useWebhookLogStats(
+    webhookId,
+    30,
+    { refetchInterval: autoRefresh ? 5000 : false }
+  );
   const testMutation = useTestWebhook();
   const retryMutation = useRetryWebhookLog();
+
+  useEffect(() => {
+    if (autoRefresh) {
+      intervalRef.current = setInterval(() => {
+        queryClient.invalidateQueries({
+          queryKey: webhookLogKeys.lists(),
+        });
+      }, 5000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [autoRefresh, queryClient]);
 
   const handleTest = async () => {
     try {
@@ -239,24 +274,45 @@ export default function WebhookDetailPage() {
       </div>
 
       <Card>
+        <CardHeader>
+          <CardTitle>Daily Delivery Statistics</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EventTimeSeriesChart data={statsData || []} isLoading={statsLoading} />
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Delivery Logs</CardTitle>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) =>
-              setStatusFilter(value as WebhookLogStatus | 'ALL')
-            }
-          >
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All</SelectItem>
-              <SelectItem value="SUCCESS">Success</SelectItem>
-              <SelectItem value="FAILED">Failed</SelectItem>
-              <SelectItem value="PENDING">Pending</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="auto-refresh"
+                checked={autoRefresh}
+                onCheckedChange={setAutoRefresh}
+              />
+              <Label htmlFor="auto-refresh" className="text-sm text-muted-foreground">
+                Auto-refresh (5s)
+              </Label>
+            </div>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) =>
+                setStatusFilter(value as WebhookLogStatus | 'ALL')
+              }
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All</SelectItem>
+                <SelectItem value="SUCCESS">Success</SelectItem>
+                <SelectItem value="FAILED">Failed</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {!logsLoading && logs?.data.length === 0 ? (

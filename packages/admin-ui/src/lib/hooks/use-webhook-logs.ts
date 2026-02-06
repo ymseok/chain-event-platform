@@ -3,6 +3,7 @@ import {
   getWebhookLogs,
   getWebhookLog,
   retryWebhookLog,
+  getWebhookLogStats,
 } from '@/lib/api/webhook-logs';
 import type { WebhookLogStatus } from '@/types';
 
@@ -17,6 +18,8 @@ export const webhookLogKeys = {
   ) => [...webhookLogKeys.lists(), webhookId, { page, limit, status }] as const,
   details: () => [...webhookLogKeys.all, 'detail'] as const,
   detail: (id: string) => [...webhookLogKeys.details(), id] as const,
+  stats: (webhookId: string, days: number) =>
+    [...webhookLogKeys.all, 'stats', webhookId, { days }] as const,
 };
 
 export function useWebhookLogs(
@@ -48,5 +51,18 @@ export function useRetryWebhookLog() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: webhookLogKeys.lists() });
     },
+  });
+}
+
+export function useWebhookLogStats(
+  webhookId: string,
+  days = 30,
+  options?: { refetchInterval?: number | false }
+) {
+  return useQuery({
+    queryKey: webhookLogKeys.stats(webhookId, days),
+    queryFn: () => getWebhookLogStats(webhookId, days),
+    enabled: !!webhookId,
+    refetchInterval: options?.refetchInterval,
   });
 }
