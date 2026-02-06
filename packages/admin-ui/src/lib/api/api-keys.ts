@@ -26,6 +26,6 @@ export async function createApiKey(
   return response.data;
 }
 
-export async function revokeApiKey(appId: string, keyId: string): Promise<void> {
-  await apiClient.delete(`/applications/${appId}/api-keys/${keyId}`);
+export async function revokeApiKey(_appId: string, keyId: string): Promise<void> {
+  await apiClient.patch(`/api-keys/${keyId}/revoke`);
 }

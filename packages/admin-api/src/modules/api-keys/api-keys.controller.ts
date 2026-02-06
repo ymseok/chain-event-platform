@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Patch, Body, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ApiKeysService } from './api-keys.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { ApiKeyResponseDto, ApiKeyCreatedResponseDto } from './dto/api-key-response.dto';
+import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 import { CurrentUser } from '../../common/decorators';
 
 @ApiTags('API Keys')
@@ -28,8 +29,9 @@ export class ApiKeysController {
   async findAll(
     @CurrentUser('id') userId: string,
     @Param('appId', ParseUUIDPipe) applicationId: string,
-  ): Promise<ApiKeyResponseDto[]> {
-    return this.apiKeysService.findAllByApplicationId(userId, applicationId);
+    @Query() paginationQuery: PaginationQueryDto,
+  ): Promise<PaginatedResponseDto<ApiKeyResponseDto>> {
+    return this.apiKeysService.findAllByApplicationId(userId, applicationId, paginationQuery);
   }
 
   @Patch('api-keys/:id/revoke')

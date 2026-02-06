@@ -3,6 +3,7 @@ import { ApiKeysRepository } from './api-keys.repository';
 import { ApplicationsService } from '../applications/applications.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { ApiKeyResponseDto, ApiKeyCreatedResponseDto } from './dto/api-key-response.dto';
+import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 import { CryptoUtil } from '../../common/utils';
 import { EntityNotFoundException, ForbiddenException } from '../../common/exceptions';
 
@@ -41,11 +42,20 @@ export class ApiKeysService {
   async findAllByApplicationId(
     userId: string,
     applicationId: string,
-  ): Promise<ApiKeyResponseDto[]> {
+    paginationQuery: PaginationQueryDto,
+  ): Promise<PaginatedResponseDto<ApiKeyResponseDto>> {
     await this.applicationsService.validateOwnership(userId, applicationId);
 
-    const apiKeys = await this.apiKeysRepository.findAllByApplicationId(applicationId);
-    return apiKeys.map(ApiKeyResponseDto.fromEntity);
+    const [apiKeys, total] = await this.apiKeysRepository.findAllByApplicationId(
+      applicationId,
+      paginationQuery.skip,
+      paginationQuery.take,
+    );
+    return PaginatedResponseDto.create(apiKeys.map(ApiKeyResponseDto.fromEntity), {
+      page: paginationQuery.page!,
+      limit: paginationQuery.limit!,
+      total,
+    });
   }
 
   async revoke(userId: string, id: string): Promise<void> {

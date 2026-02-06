@@ -26,11 +26,21 @@ export class ApiKeysRepository {
     return this.prisma.apiKey.findUnique({ where: { keyHash } });
   }
 
-  async findAllByApplicationId(applicationId: string): Promise<ApiKey[]> {
-    return this.prisma.apiKey.findMany({
-      where: { applicationId },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAllByApplicationId(
+    applicationId: string,
+    skip: number,
+    take: number,
+  ): Promise<[ApiKey[], number]> {
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.apiKey.findMany({
+        where: { applicationId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.apiKey.count({ where: { applicationId } }),
+    ]);
+    return [data, total];
   }
 
   async revoke(id: string): Promise<void> {

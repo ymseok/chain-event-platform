@@ -11,6 +11,7 @@ import {
   Copy,
   Trash2,
   Key,
+  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -161,7 +162,13 @@ export default function ApplicationOverviewPage() {
             Create Key
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              There are currently no public APIs available for external use via API keys. API key based access will be supported in a future update.
+            </p>
+          </div>
           {!keysLoading && apiKeys?.data?.length === 0 ? (
             <EmptyState
               icon={Key}

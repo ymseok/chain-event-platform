@@ -6,16 +6,20 @@ import { Plus, Bell, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import {
   DataTable,
-  StatusBadge,
   EmptyState,
   ConfirmDialog,
 } from '@/components/common';
-import { useSubscriptions, useDeleteSubscription } from '@/lib/hooks';
+import {
+  useSubscriptions,
+  useDeleteSubscription,
+  useUpdateSubscription,
+} from '@/lib/hooks';
 import { formatDate } from '@/lib/utils';
 import { CreateSubscriptionDialog } from './create-subscription-dialog';
-import type { Subscription } from '@/types';
+import type { Subscription, SubscriptionStatus } from '@/types';
 import type { Column } from '@/components/common/data-table';
 
 export default function SubscriptionsPage() {
@@ -31,6 +35,21 @@ export default function SubscriptionsPage() {
 
   const { data, isLoading } = useSubscriptions(appId, page, 20);
   const deleteMutation = useDeleteSubscription();
+  const updateMutation = useUpdateSubscription();
+
+  const handleStatusToggle = async (sub: Subscription) => {
+    const newStatus: SubscriptionStatus =
+      sub.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+    try {
+      await updateMutation.mutateAsync({
+        id: sub.id,
+        data: { status: newStatus },
+      });
+      toast.success(`Subscription ${newStatus.toLowerCase()}`);
+    } catch (error) {
+      toast.error('Failed to update subscription status');
+    }
+  };
 
   const handleDelete = async () => {
     if (!subscriptionToDelete) return;
@@ -70,8 +89,22 @@ export default function SubscriptionsPage() {
     },
     {
       header: 'Status',
-      cell: (sub) => <StatusBadge status={sub.status} />,
-      className: 'w-24',
+      cell: (sub) => (
+        <div
+          className="flex items-center gap-2"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Switch
+            checked={sub.status === 'ACTIVE'}
+            onCheckedChange={() => handleStatusToggle(sub)}
+            disabled={updateMutation.isPending}
+          />
+          <span className="text-sm text-muted-foreground">
+            {sub.status === 'ACTIVE' ? 'Active' : 'Paused'}
+          </span>
+        </div>
+      ),
+      className: 'w-36',
     },
     {
       header: 'Created',
