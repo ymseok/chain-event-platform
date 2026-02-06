@@ -34,6 +34,16 @@ export function EventTimeSeriesChart({ data, isLoading }: EventTimeSeriesChartPr
     }));
   }, [data]);
 
+  // Calculate tick interval for uniform spacing on x-axis
+  const tickInterval = useMemo(() => {
+    const dataLength = data.length;
+    if (dataLength <= 7) return 0; // Show all ticks
+    if (dataLength <= 14) return 1; // Show every 2nd tick
+    if (dataLength <= 21) return 2; // Show every 3rd tick
+    if (dataLength <= 30) return Math.floor(dataLength / 7) - 1; // ~7 ticks
+    return Math.floor(dataLength / 6) - 1; // ~6 ticks for longer ranges
+  }, [data.length]);
+
   if (isLoading) {
     return (
       <div className="h-[300px] w-full flex items-center justify-center">
@@ -77,6 +87,7 @@ export function EventTimeSeriesChart({ data, isLoading }: EventTimeSeriesChartPr
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
             tickLine={false}
             axisLine={{ stroke: 'hsl(var(--border))' }}
+            interval={tickInterval}
           />
           <YAxis
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}

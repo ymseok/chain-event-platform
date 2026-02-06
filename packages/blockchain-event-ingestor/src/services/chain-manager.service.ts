@@ -19,42 +19,85 @@ export class ChainManagerService {
     this.queuePublisher = new QueuePublisherService(config);
   }
 
+  private static readonly RETRY_INTERVAL_MS = 5000; // 5 seconds
+  private static readonly MAX_RETRY_LOG_INTERVAL = 6; // Log every 6th retry (30 seconds)
+
   /**
    * Initialize the chain manager - fetch initial data and start pollers
+   * Retries indefinitely until admin-api is available
    */
   async initialize(): Promise<void> {
     logger.info('Initializing chain manager...');
 
-    try {
-      // Fetch initial data from admin-api
-      const data = await this.adminApi.getSubscriptions();
+    const data = await this.fetchInitialDataWithRetry();
 
-      // Store chains
-      for (const chain of data.chains) {
-        this.chains.set(chain.id, chain);
-      }
-
-      // Group subscriptions by chainId
-      for (const sub of data.subscriptions) {
-        const chainSubs = this.subscriptions.get(sub.chainId) || [];
-        chainSubs.push(sub);
-        this.subscriptions.set(sub.chainId, chainSubs);
-      }
-
-      // Start pollers for active chains
-      for (const chain of data.chains) {
-        if (chain.status === 'ACTIVE') {
-          await this.startPoller(chain);
-        }
-      }
-
-      logger.info(
-        `Chain manager initialized with ${this.chains.size} chains and ${data.subscriptions.length} subscriptions`,
-      );
-    } catch (error) {
-      logger.error('Failed to initialize chain manager', { error });
-      throw error;
+    // Store chains
+    for (const chain of data.chains) {
+      this.chains.set(chain.id, chain);
     }
+
+    // Group subscriptions by chainId
+    for (const sub of data.subscriptions) {
+      const chainSubs = this.subscriptions.get(sub.chainId) || [];
+      chainSubs.push(sub);
+      this.subscriptions.set(sub.chainId, chainSubs);
+    }
+
+    // Start pollers for active chains
+    for (const chain of data.chains) {
+      if (chain.status === 'ACTIVE') {
+        await this.startPoller(chain);
+      }
+    }
+
+    logger.info(
+      `Chain manager initialized with ${this.chains.size} chains and ${data.subscriptions.length} subscriptions`,
+    );
+  }
+
+  /**
+   * Fetch initial data from admin-api with retry logic
+   * Retries indefinitely until successful
+   */
+  private async fetchInitialDataWithRetry(): Promise<{
+    chains: Chain[];
+    subscriptions: Subscription[];
+  }> {
+    let retryCount = 0;
+
+    while (true) {
+      try {
+        const data = await this.adminApi.getSubscriptions();
+        if (retryCount > 0) {
+          logger.info('Successfully connected to admin-api after retries', {
+            totalRetries: retryCount,
+          });
+        }
+        return data;
+      } catch (error) {
+        retryCount++;
+
+        // Log every N retries to avoid log spam
+        if (retryCount === 1 || retryCount % ChainManagerService.MAX_RETRY_LOG_INTERVAL === 0) {
+          logger.warn(
+            `Failed to fetch data from admin-api, retrying... (attempt ${retryCount})`,
+            {
+              nextRetryInMs: ChainManagerService.RETRY_INTERVAL_MS,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+          );
+        }
+
+        await this.sleep(ChainManagerService.RETRY_INTERVAL_MS);
+      }
+    }
+  }
+
+  /**
+   * Sleep for specified milliseconds
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
