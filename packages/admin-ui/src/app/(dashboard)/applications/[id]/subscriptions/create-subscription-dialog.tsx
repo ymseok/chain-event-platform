@@ -22,11 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useCreateSubscription, usePrograms, useEvents, useWebhooks } from '@/lib/hooks';
 
 const createSubscriptionSchema = z.object({
   programId: z.string().min(1, 'Program is required'),
-  eventId: z.string().min(1, 'Event is required'),
+  eventIds: z.array(z.string()).min(1, 'At least one event is required'),
   webhookId: z.string().min(1, 'Webhook is required'),
 });
 
@@ -66,22 +67,46 @@ export function CreateSubscriptionDialog({
   useEffect(() => {
     if (watchedProgramId) {
       setSelectedProgramId(watchedProgramId);
-      setValue('eventId', '');
+      setValue('eventIds', []);
     }
   }, [watchedProgramId, setValue]);
 
   const onSubmit = async (data: CreateSubscriptionForm) => {
     try {
-      await createMutation.mutateAsync({
-        eventId: data.eventId,
-        webhookId: data.webhookId,
-      });
-      toast.success('Subscription created successfully');
+      const results = await Promise.allSettled(
+        data.eventIds.map((eventId) =>
+          createMutation.mutateAsync({
+            eventId,
+            webhookId: data.webhookId,
+          })
+        )
+      );
+
+      const successCount = results.filter((r) => r.status === 'fulfilled').length;
+      const failCount = results.filter((r) => r.status === 'rejected').length;
+
+      if (failCount === 0) {
+        toast.success(`${successCount} subscription(s) created successfully`);
+      } else if (successCount > 0) {
+        toast.warning(`${successCount} created, ${failCount} failed`);
+      } else {
+        toast.error('Failed to create subscriptions');
+      }
+
       reset();
       setSelectedProgramId('');
       onOpenChange(false);
     } catch (error) {
-      toast.error('Failed to create subscription');
+      toast.error('Failed to create subscriptions');
+    }
+  };
+
+  const handleEventToggle = (eventId: string, checked: boolean) => {
+    const currentEventIds = watch('eventIds') || [];
+    if (checked) {
+      setValue('eventIds', [...currentEventIds, eventId]);
+    } else {
+      setValue('eventIds', currentEventIds.filter((id) => id !== eventId));
     }
   };
 
@@ -127,26 +152,47 @@ export function CreateSubscriptionDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Event</Label>
-              <Select
-                onValueChange={(value) => setValue('eventId', value)}
-                value={watch('eventId')}
-                disabled={!selectedProgramId}
+              <Label>Events</Label>
+              <div
+                className={`rounded-md border ${
+                  !selectedProgramId ? 'bg-muted opacity-50' : ''
+                }`}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select event" />
-                </SelectTrigger>
-                <SelectContent>
-                  {events?.data?.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.eventId && (
+                <div className="max-h-48 overflow-y-auto p-2 space-y-2">
+                  {!selectedProgramId ? (
+                    <p className="text-sm text-muted-foreground p-2">
+                      Select a program first
+                    </p>
+                  ) : events?.data?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground p-2">
+                      No events available
+                    </p>
+                  ) : (
+                    events?.data?.map((event) => (
+                      <label
+                        key={event.id}
+                        className="flex items-center space-x-2 p-2 rounded hover:bg-muted cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={(watch('eventIds') || []).includes(event.id)}
+                          onCheckedChange={(checked) =>
+                            handleEventToggle(event.id, checked as boolean)
+                          }
+                        />
+                        <span className="text-sm">{event.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+              {(watch('eventIds') || []).length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {(watch('eventIds') || []).length} event(s) selected
+                </p>
+              )}
+              {errors.eventIds && (
                 <p className="text-sm text-destructive">
-                  {errors.eventId.message}
+                  {errors.eventIds.message}
                 </p>
               )}
             </div>
