@@ -31,9 +31,6 @@ export class IngestorService {
         },
         webhook: {
           status: 'ACTIVE',
-          application: {
-            status: 'ACTIVE',
-          },
         },
       },
       include: {
@@ -93,9 +90,6 @@ export class IngestorService {
         },
         webhook: {
           status: 'ACTIVE',
-          application: {
-            status: 'ACTIVE',
-          },
         },
       },
       include: {

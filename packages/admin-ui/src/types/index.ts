@@ -19,7 +19,6 @@ export interface Application {
   userId: string;
   name: string;
   description: string | null;
-  status: Status;
   createdAt: string;
   updatedAt: string;
 }
@@ -234,7 +233,6 @@ export interface CreateApplicationDto {
 export interface UpdateApplicationDto {
   name?: string;
   description?: string;
-  status?: Status;
 }
 
 export interface CreateApiKeyDto {

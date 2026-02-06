@@ -8,7 +8,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   PageHeader,
   DataTable,
-  StatusBadge,
   EmptyState,
 } from '@/components/common';
 import { CreateApplicationDialog } from '@/components/applications';
@@ -37,11 +36,6 @@ export default function ApplicationsPage() {
           </p>
         </div>
       ),
-    },
-    {
-      header: 'Status',
-      cell: (app) => <StatusBadge status={app.status} />,
-      className: 'w-24',
     },
     {
       header: 'Created',

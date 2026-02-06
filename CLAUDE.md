@@ -46,4 +46,5 @@ For detailed specifications, refer to the documents in /spec/*.md if necessary.
 - **Structure proposals**: Before creating any new files or directories, always propose the expected directory structure and wait for approval.
 - **Decision rationale**: When selecting a specific technology or library, always explain the trade-offs, including both pros and cons.
 - **Infrastructure changes**: Before introducing any new infrastructure components (e.g., databases, Redis, message queues), always ask for explicit user approval first.
+- **Build verification**: After modifying any code, always run `pnpm build` to verify there are no compilation or lint errors before completing the task.
 

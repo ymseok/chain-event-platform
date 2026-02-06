@@ -60,7 +60,6 @@ model Application {
   userId      String   @map("user_id") @db.Uuid
   name        String   @db.VarChar(100)
   description String?  @db.Text
-  status      Status   @default(ACTIVE)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

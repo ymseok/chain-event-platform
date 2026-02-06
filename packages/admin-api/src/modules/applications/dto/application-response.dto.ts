@@ -15,9 +15,6 @@ export class ApplicationResponseDto {
   description: string | null;
 
   @ApiProperty()
-  status: string;
-
-  @ApiProperty()
   createdAt: Date;
 
   @ApiProperty()
@@ -29,7 +26,6 @@ export class ApplicationResponseDto {
       userId: entity.userId,
       name: entity.name,
       description: entity.description,
-      status: entity.status,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };

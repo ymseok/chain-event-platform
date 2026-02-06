@@ -1,10 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MaxLength, IsEnum } from 'class-validator';
-
-export enum ApplicationStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-}
+import { IsString, IsOptional, MaxLength } from 'class-validator';
 
 export class UpdateApplicationDto {
   @ApiPropertyOptional({ example: 'My Updated DApp', maxLength: 100 })
@@ -17,9 +12,4 @@ export class UpdateApplicationDto {
   @IsString()
   @IsOptional()
   description?: string;
-
-  @ApiPropertyOptional({ enum: ApplicationStatus })
-  @IsEnum(ApplicationStatus)
-  @IsOptional()
-  status?: ApplicationStatus;
 }

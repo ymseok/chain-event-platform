@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { AppWindow, Code2, Webhook, Bell, Plus, ArrowRight, Activity, TrendingUp, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader, StatsCard, EmptyState, StatusBadge } from '@/components/common';
+import { PageHeader, StatsCard, EmptyState } from '@/components/common';
 import {
   useApplications,
   useDashboardStats,
@@ -194,10 +194,7 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <StatusBadge status={app.status} />
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 ))}
               </div>

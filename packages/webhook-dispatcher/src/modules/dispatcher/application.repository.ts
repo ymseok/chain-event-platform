@@ -14,7 +14,6 @@ export class ApplicationRepository {
 
   async findAllActive(): Promise<ActiveApplication[]> {
     const applications = await this.prisma.application.findMany({
-      where: { status: 'ACTIVE' },
       select: {
         id: true,
         name: true,
