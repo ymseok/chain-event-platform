@@ -36,4 +36,6 @@ class EventStore {
   }
 }
 
-export const eventStore = new EventStore();
+const globalForEventStore = globalThis as unknown as { eventStore: EventStore };
+export const eventStore = globalForEventStore.eventStore ?? new EventStore();
+globalForEventStore.eventStore = eventStore;
