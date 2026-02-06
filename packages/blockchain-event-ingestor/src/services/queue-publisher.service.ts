@@ -81,6 +81,39 @@ export class QueuePublisherService {
   }
 
   /**
+   * Publish events and update per-app progress atomically in a single Redis pipeline.
+   * Used when partitioning is enabled to ensure events and progress markers
+   * are committed together.
+   */
+  async publishEventsWithProgress(
+    events: Array<{ applicationId: string; message: EventQueueMessage }>,
+    progressUpdates: Array<{ key: string; value: string }>,
+  ): Promise<void> {
+    if (events.length === 0 && progressUpdates.length === 0) return;
+
+    const pipeline = this.redis.pipeline();
+
+    for (const { applicationId, message } of events) {
+      const queueName = this.getQueueName(applicationId);
+      pipeline.lpush(queueName, JSON.stringify(message));
+    }
+
+    for (const { key, value } of progressUpdates) {
+      pipeline.set(key, value);
+    }
+
+    try {
+      await pipeline.exec();
+      logger.info(
+        `Published ${events.length} events with ${progressUpdates.length} progress updates`,
+      );
+    } catch (error) {
+      logger.error('Failed to publish events with progress', { error });
+      throw error;
+    }
+  }
+
+  /**
    * Close Redis connection
    */
   async close(): Promise<void> {

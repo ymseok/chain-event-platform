@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import { loadConfig } from './config';
+import { AppClaimService } from './services/app-claim.service';
+import { AppProgressService } from './services/app-progress.service';
 import { ChainManagerService } from './services/chain-manager.service';
 import { ConfigSubscriberService } from './services/config-subscriber.service';
 import { mainLogger as logger } from './services/logger.service';
@@ -12,10 +14,26 @@ async function main(): Promise<void> {
     adminApiUrl: config.adminApi.url,
     redisHost: config.redis.host,
     redisPort: config.redis.port,
+    partitioningEnabled: config.partitioning.enabled,
+    instanceId: config.partitioning.enabled ? config.partitioning.instanceId : undefined,
   });
 
+  // Create partitioning services if enabled
+  let appClaimService: AppClaimService | undefined;
+  let appProgressService: AppProgressService | undefined;
+
+  if (config.partitioning.enabled) {
+    appClaimService = new AppClaimService(config);
+    appProgressService = new AppProgressService(config);
+    logger.info('Partitioning mode enabled', {
+      instanceId: config.partitioning.instanceId,
+      leaseTtlSec: config.partitioning.leaseTtlSec,
+      claimIntervalMs: config.partitioning.claimIntervalMs,
+    });
+  }
+
   // Create services
-  const chainManager = new ChainManagerService(config);
+  const chainManager = new ChainManagerService(config, appClaimService, appProgressService);
   const configSubscriber = new ConfigSubscriberService(config);
 
   // Register refresh handler

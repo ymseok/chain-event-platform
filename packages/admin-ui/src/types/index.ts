@@ -217,6 +217,35 @@ export interface RegisterCredentials {
   name: string;
 }
 
+// Ingestor Instances
+export interface IngestorClaimedApp {
+  appId: string;
+  appName: string;
+  leaseTtlRemaining: number;
+}
+
+export interface IngestorInstance {
+  instanceId: string;
+  claimedApps: IngestorClaimedApp[];
+}
+
+export interface UnclaimedApp {
+  appId: string;
+  appName: string;
+}
+
+export interface IngestorInstancesResponse {
+  instances: IngestorInstance[];
+  unclaimedApps: UnclaimedApp[];
+}
+
+export interface RebalanceResponse {
+  message: string;
+  released: number;
+  totalApps: number;
+  totalInstances: number;
+}
+
 // API Error
 export interface ApiError {
   statusCode: number;

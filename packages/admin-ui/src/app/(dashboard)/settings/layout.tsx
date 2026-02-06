@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Link2 } from 'lucide-react';
+import { Link2, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const settingsNavItems = [
@@ -11,6 +11,12 @@ const settingsNavItems = [
     href: '/settings/chains',
     icon: Link2,
     description: 'Manage blockchain networks',
+  },
+  {
+    title: 'Event Ingestors',
+    href: '/settings/ingestors',
+    icon: Server,
+    description: 'Monitor ingestor instances',
   },
 ];
 

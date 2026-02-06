@@ -8,4 +8,5 @@ export * from './events';
 export * from './webhooks';
 export * from './subscriptions';
 export * from './webhook-logs';
+export * from './ingestor';
 export { default as apiClient } from './client';

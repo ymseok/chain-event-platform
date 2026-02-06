@@ -13,7 +13,15 @@ export interface Config {
   logging: {
     level: string;
   };
+  partitioning: {
+    enabled: boolean;
+    leaseTtlSec: number;
+    claimIntervalMs: number;
+    instanceId: string;
+  };
 }
+
+import { randomUUID } from 'crypto';
 
 export function loadConfig(): Config {
   return {
@@ -33,6 +41,12 @@ export function loadConfig(): Config {
     },
     logging: {
       level: process.env.LOG_LEVEL || 'info',
+    },
+    partitioning: {
+      enabled: process.env.PARTITIONING_ENABLED !== 'false',
+      leaseTtlSec: parseInt(process.env.LEASE_TTL_SEC || '30', 10),
+      claimIntervalMs: parseInt(process.env.CLAIM_INTERVAL_MS || '5000', 10),
+      instanceId: process.env.INSTANCE_ID || `ingestor-${randomUUID().slice(0, 8)}`,
     },
   };
 }

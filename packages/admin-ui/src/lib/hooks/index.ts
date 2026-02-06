@@ -8,3 +8,4 @@ export * from './use-events';
 export * from './use-webhooks';
 export * from './use-subscriptions';
 export * from './use-webhook-logs';
+export * from './use-ingestor';

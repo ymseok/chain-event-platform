@@ -2,6 +2,7 @@ import { InterfaceAbi, JsonRpcProvider, Log } from 'ethers';
 import { Chain, EventQueueMessage, Subscription, SyncStatus } from '../types';
 import { EventParser } from '../utils/event-parser';
 import { AdminApiService } from './admin-api.service';
+import { AppProgressService } from './app-progress.service';
 import { createLogger } from './logger.service';
 import { QueuePublisherService } from './queue-publisher.service';
 
@@ -25,9 +26,17 @@ export class BlockPollerService {
     private adminApi: AdminApiService,
     private pollIntervalMs: number,
     private statusReportIntervalMs: number,
+    private appProgressService?: AppProgressService,
   ) {
     this.provider = new JsonRpcProvider(chain.rpcUrl);
     this.eventParser = new EventParser();
+  }
+
+  /**
+   * Get the last processed block number
+   */
+  getLastProcessedBlock(): bigint {
+    return this.lastProcessedBlock;
   }
 
   /**
@@ -46,22 +55,36 @@ export class BlockPollerService {
       // Get current chain's target block number (finalized with fallback to latest)
       const latestBlockBigInt = await this.getTargetBlockNumber(true);
 
-      // Try to get last processed block from admin-api
-      const syncStatus = await this.adminApi.getSyncStatus(this.chain.id);
+      // Determine start block
+      let startBlock: bigint | null = null;
 
-      if (syncStatus && syncStatus.latestBlockNumber) {
-        // Resume from the last processed block
-        this.lastProcessedBlock = BigInt(syncStatus.latestBlockNumber);
-        logger.info(
-          `Resuming from block ${this.lastProcessedBlock} on chain ${this.chain.name} (latest: ${latestBlockBigInt})`,
-        );
+      if (this.appProgressService) {
+        // When partitioning is enabled, use the minimum progress across claimed apps
+        startBlock = await this.getMinAppProgress();
+      }
+
+      if (startBlock === null) {
+        // Fallback: Try to get last processed block from admin-api
+        const syncStatus = await this.adminApi.getSyncStatus(this.chain.id);
+
+        if (syncStatus && syncStatus.latestBlockNumber) {
+          startBlock = BigInt(syncStatus.latestBlockNumber);
+          logger.info(
+            `Resuming from block ${startBlock} on chain ${this.chain.name} (latest: ${latestBlockBigInt})`,
+          );
+        } else {
+          startBlock = latestBlockBigInt;
+          logger.info(
+            `No previous sync status found. Starting from latest block ${startBlock} on chain ${this.chain.name}`,
+          );
+        }
       } else {
-        // No previous sync status, start from latest block
-        this.lastProcessedBlock = latestBlockBigInt;
         logger.info(
-          `No previous sync status found. Starting from latest block ${this.lastProcessedBlock} on chain ${this.chain.name}`,
+          `Resuming from min app progress block ${startBlock} on chain ${this.chain.name} (latest: ${latestBlockBigInt})`,
         );
       }
+
+      this.lastProcessedBlock = startBlock;
       logger.debug(`lastProcessedBlock: ${this.lastProcessedBlock}, latestBlockBigInt: ${latestBlockBigInt}`);
 
       // Check if we need to catch up
@@ -128,6 +151,120 @@ export class BlockPollerService {
   }
 
   /**
+   * Add subscriptions for a newly claimed app
+   */
+  addSubscriptions(newSubs: Subscription[]): void {
+    this.subscriptions = [...this.subscriptions, ...newSubs];
+    this.eventParser.clearCache();
+    logger.info(
+      `Added ${newSubs.length} subscriptions for chain ${this.chain.name}, total: ${this.subscriptions.length}`,
+    );
+  }
+
+  /**
+   * Remove subscriptions for a released app
+   */
+  removeSubscriptions(appId: string): void {
+    const before = this.subscriptions.length;
+    this.subscriptions = this.subscriptions.filter((s) => s.applicationId !== appId);
+    this.eventParser.clearCache();
+    logger.info(
+      `Removed ${before - this.subscriptions.length} subscriptions for app ${appId} on chain ${this.chain.name}, remaining: ${this.subscriptions.length}`,
+    );
+  }
+
+  /**
+   * Get the number of current subscriptions
+   */
+  getSubscriptionCount(): number {
+    return this.subscriptions.length;
+  }
+
+  /**
+   * Catch up a specific application from a given block to the poller's current position.
+   * Used when a newly claimed app is behind the chain poller.
+   */
+  async catchUpApplication(
+    appId: string,
+    appSubscriptions: Subscription[],
+    fromBlock: bigint,
+    toBlock: bigint,
+  ): Promise<void> {
+    logger.info(
+      `Catching up app ${appId} on chain ${this.chain.name} from block ${fromBlock} to ${toBlock}`,
+    );
+
+    let current = fromBlock;
+    while (current <= toBlock) {
+      const batchEnd = current + BATCH_SIZE - 1n > toBlock ? toBlock : current + BATCH_SIZE - 1n;
+
+      // Get logs for this app's addresses/topics only
+      const logs = await this.getLogsForSubscriptions(current, batchEnd, appSubscriptions);
+
+      const eventsToPublish: Array<{ applicationId: string; message: EventQueueMessage }> = [];
+
+      if (logs.length > 0) {
+        const block = await this.provider.getBlock(Number(batchEnd));
+        const timestamp = block?.timestamp || Math.floor(Date.now() / 1000);
+
+        for (const log of logs) {
+          const matchingSubs = appSubscriptions.filter(
+            (sub) =>
+              sub.contractAddress.toLowerCase() === log.address.toLowerCase() &&
+              sub.eventSignature === log.topics[0],
+          );
+
+          for (const sub of matchingSubs) {
+            const parsedEvent = this.eventParser.parseLog(
+              log,
+              sub.abi as InterfaceAbi,
+              `${sub.contractAddress}-${sub.eventSignature}`,
+            );
+            if (!parsedEvent) continue;
+            if (sub.filterConditions && !this.matchesFilter(parsedEvent.args, sub.filterConditions)) {
+              continue;
+            }
+
+            eventsToPublish.push({
+              applicationId: sub.applicationId,
+              message: {
+                subscriptionId: sub.id,
+                eventTopic: log.topics[0],
+                data: parsedEvent.args,
+                metadata: {
+                  blockNumber: log.blockNumber,
+                  transactionHash: log.transactionHash,
+                  logIndex: log.index,
+                  chainId: this.chain.chainId,
+                  contractAddress: log.address,
+                  timestamp,
+                },
+              },
+            });
+          }
+        }
+      }
+
+      // Publish events + update progress atomically
+      if (this.appProgressService) {
+        const progressKey = this.appProgressService.getProgressKey(appId, this.chain.id);
+        await this.queuePublisher.publishEventsWithProgress(eventsToPublish, [
+          { key: progressKey, value: batchEnd.toString() },
+        ]);
+      } else if (eventsToPublish.length > 0) {
+        await this.queuePublisher.publishEvents(eventsToPublish);
+      }
+
+      logger.debug(
+        `Catch-up app ${appId}: processed blocks ${current}-${batchEnd}, ${eventsToPublish.length} events`,
+      );
+      current = batchEnd + 1n;
+    }
+
+    logger.info(`Catch-up complete for app ${appId} on chain ${this.chain.name}`);
+  }
+
+  /**
    * Get target block number (finalized block with fallback to latest)
    */
   private async getTargetBlockNumber(logOnFallback = false): Promise<bigint> {
@@ -144,6 +281,27 @@ export class BlockPollerService {
     }
 
     return BigInt(finalizedBlock.number);
+  }
+
+  /**
+   * Get the minimum progress across all claimed apps on this chain
+   */
+  private async getMinAppProgress(): Promise<bigint | null> {
+    if (!this.appProgressService) return null;
+
+    const appIds = new Set(this.subscriptions.map((s) => s.applicationId));
+    let minProgress: bigint | null = null;
+
+    for (const appId of appIds) {
+      const progress = await this.appProgressService.getProgress(appId, this.chain.id);
+      if (progress !== null) {
+        if (minProgress === null || progress < minProgress) {
+          minProgress = progress;
+        }
+      }
+    }
+
+    return minProgress;
   }
 
   /**
@@ -212,8 +370,14 @@ export class BlockPollerService {
       // Get logs using optimized filter
       const logs = await this.getLogs(fromBlock, toBlock);
 
-      if (logs.length > 0) {
-        await this.processLogs(logs, Number(toBlock));
+      if (this.appProgressService) {
+        // Partitioning mode: publish events + progress updates atomically
+        await this.processLogsWithProgress(logs, Number(toBlock), toBlock);
+      } else {
+        // Legacy mode: publish events only
+        if (logs.length > 0) {
+          await this.processLogs(logs, Number(toBlock));
+        }
       }
 
       this.lastProcessedBlock = toBlock;
@@ -230,17 +394,29 @@ export class BlockPollerService {
    * Get logs using optimized filter parameters
    */
   private async getLogs(fromBlock: bigint, toBlock: bigint): Promise<Log[]> {
-    // Group subscriptions by contract address
+    return this.getLogsForSubscriptions(fromBlock, toBlock, this.subscriptions);
+  }
+
+  /**
+   * Get logs for a specific set of subscriptions
+   */
+  private async getLogsForSubscriptions(
+    fromBlock: bigint,
+    toBlock: bigint,
+    subscriptions: Subscription[],
+  ): Promise<Log[]> {
+    if (subscriptions.length === 0) return [];
+
     const addressSet = new Set<string>();
     const topicSet = new Set<string>();
 
-    for (const sub of this.subscriptions) {
+    for (const sub of subscriptions) {
       addressSet.add(sub.contractAddress.toLowerCase());
       topicSet.add(sub.eventSignature);
     }
 
     const addresses = Array.from(addressSet);
-    const topics = [Array.from(topicSet)]; // topics[0] is an array of event signatures
+    const topics = [Array.from(topicSet)];
 
     try {
       const logs = await this.provider.getLogs({
@@ -258,7 +434,79 @@ export class BlockPollerService {
   }
 
   /**
-   * Process logs and publish to queues
+   * Process logs and publish events with per-app progress updates (partitioning mode)
+   */
+  private async processLogsWithProgress(
+    logs: Log[],
+    blockNumber: number,
+    toBlock: bigint,
+  ): Promise<void> {
+    const eventsToPublish: Array<{ applicationId: string; message: EventQueueMessage }> = [];
+
+    if (logs.length > 0) {
+      const block = await this.provider.getBlock(blockNumber);
+      const timestamp = block?.timestamp || Math.floor(Date.now() / 1000);
+
+      for (const log of logs) {
+        const matchingSubscriptions = this.subscriptions.filter(
+          (sub) =>
+            sub.contractAddress.toLowerCase() === log.address.toLowerCase() &&
+            sub.eventSignature === log.topics[0],
+        );
+
+        logger.debug(`Processing log from address ${log.address} with topic ${log.topics[0]}`);
+
+        for (const sub of matchingSubscriptions) {
+          const parsedEvent = this.eventParser.parseLog(
+            log,
+            sub.abi as InterfaceAbi,
+            `${sub.contractAddress}-${sub.eventSignature}`,
+          );
+          if (!parsedEvent) continue;
+          if (sub.filterConditions && !this.matchesFilter(parsedEvent.args, sub.filterConditions)) {
+            continue;
+          }
+
+          eventsToPublish.push({
+            applicationId: sub.applicationId,
+            message: {
+              subscriptionId: sub.id,
+              eventTopic: log.topics[0],
+              data: parsedEvent.args,
+              metadata: {
+                blockNumber: log.blockNumber,
+                transactionHash: log.transactionHash,
+                logIndex: log.index,
+                chainId: this.chain.chainId,
+                contractAddress: log.address,
+                timestamp,
+              },
+            },
+          });
+        }
+      }
+    }
+
+    // Build progress updates for ALL active apps on this chain (even those with no events)
+    const activeAppIds = new Set(this.subscriptions.map((s) => s.applicationId));
+    const progressUpdates: Array<{ key: string; value: string }> = [];
+
+    for (const appId of activeAppIds) {
+      const key = this.appProgressService!.getProgressKey(appId, this.chain.id);
+      progressUpdates.push({ key, value: toBlock.toString() });
+    }
+
+    await this.queuePublisher.publishEventsWithProgress(eventsToPublish, progressUpdates);
+
+    if (eventsToPublish.length > 0) {
+      logger.info(
+        `Published ${eventsToPublish.length} events from block ${blockNumber} on chain ${this.chain.name}`,
+      );
+    }
+  }
+
+  /**
+   * Process logs and publish to queues (legacy mode, no progress tracking)
    */
   private async processLogs(logs: Log[], blockNumber: number): Promise<void> {
     const eventsToPublish: Array<{ applicationId: string; message: EventQueueMessage }> = [];
@@ -274,10 +522,9 @@ export class BlockPollerService {
           sub.contractAddress.toLowerCase() === log.address.toLowerCase() &&
           sub.eventSignature === log.topics[0],
       );
-      
-      // logger about log.address and log.topics[0]
+
       logger.debug(`Processing log from address ${log.address} with topic ${log.topics[0]}`);
-      
+
       for (const sub of matchingSubscriptions) {
         // Parse the event data using the ABI
         const parsedEvent = this.eventParser.parseLog(

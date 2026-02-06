@@ -1,9 +1,17 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { IngestorService } from './ingestor.service';
 import {
   IngestorSubscriptionsResponseDto,
   IngestorSubscriptionDto,
+  IngestorInstancesResponseDto,
+  RebalanceResponseDto,
 } from './dto';
 import { Public } from '../../common/decorators';
 
@@ -44,5 +52,37 @@ export class IngestorController {
     @Param('chainId', ParseIntPipe) chainId: number,
   ): Promise<IngestorSubscriptionDto[]> {
     return this.ingestorService.getSubscriptionsByChainId(chainId);
+  }
+
+  @Get('instances')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get all active ingestor instances',
+    description:
+      'Returns all ingestor instances with their claimed applications and unclaimed apps',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Ingestor instances data',
+    type: IngestorInstancesResponseDto,
+  })
+  async getInstances(): Promise<IngestorInstancesResponseDto> {
+    return this.ingestorService.getInstances();
+  }
+
+  @Post('rebalance')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Trigger ingestor rebalancing',
+    description:
+      'Releases excess claims from over-loaded instances so under-loaded instances can pick them up',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rebalance result',
+    type: RebalanceResponseDto,
+  })
+  async rebalance(): Promise<RebalanceResponseDto> {
+    return this.ingestorService.rebalance();
   }
 }
