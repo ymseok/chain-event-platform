@@ -24,6 +24,17 @@ export class WebhookLogsRepository {
     return this.prisma.webhookLog.findUnique({ where: { id } });
   }
 
+  async findByIdWithWebhook(id: string) {
+    return this.prisma.webhookLog.findUnique({
+      where: { id },
+      include: {
+        webhook: {
+          select: { applicationId: true },
+        },
+      },
+    });
+  }
+
   async findByWebhookId(
     webhookId: string,
     skip: number,

@@ -96,8 +96,7 @@ export class BlockPollerService {
    * Stop polling
    */
   async stop(): Promise<void> {
-    if (!this.isRunning) return;
-
+    const wasRunning = this.isRunning;
     this.isRunning = false;
 
     if (this.pollInterval) {
@@ -110,7 +109,12 @@ export class BlockPollerService {
       this.statusReportInterval = null;
     }
 
-    await this.reportStatus('STOPPED');
+    // Destroy the provider to stop internal network detection retries
+    this.provider.destroy();
+
+    if (wasRunning) {
+      await this.reportStatus('STOPPED');
+    }
     logger.info(`Stopped block poller for chain ${this.chain.name}`);
   }
 

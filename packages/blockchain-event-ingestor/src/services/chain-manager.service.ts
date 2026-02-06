@@ -269,6 +269,7 @@ export class ChainManagerService {
       logger.info(`Started poller for chain ${chain.name}`);
     } catch (error) {
       logger.error(`Failed to start poller for chain ${chain.name}`, { error });
+      await poller.stop();
       this.pollers.delete(chain.id);
     }
   }
