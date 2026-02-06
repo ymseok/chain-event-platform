@@ -47,7 +47,7 @@ export interface Chain {
   chainId: number;
   rpcUrl: string;
   blockTime: number;
-  status: Status;
+  enabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -295,7 +295,7 @@ export interface UpdateChainDto {
   chainId?: number;
   rpcUrl?: string;
   blockTime?: number;
-  status?: Status;
+  enabled?: boolean;
 }
 
 export interface RpcCheckResult {

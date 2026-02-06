@@ -16,8 +16,8 @@ export class IngestorChainDto {
   @ApiProperty({ description: 'Block time in seconds' })
   blockTime: number;
 
-  @ApiProperty({ enum: ['ACTIVE', 'INACTIVE'] })
-  status: string;
+  @ApiProperty({ description: 'Whether the chain is enabled for monitoring' })
+  enabled: boolean;
 }
 
 export class IngestorSubscriptionDto {

@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Param,
-  ParseIntPipe,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { IngestorService } from './ingestor.service';
 import {
@@ -14,15 +6,11 @@ import {
   IngestorSubscriptionDto,
 } from './dto';
 import { Public } from '../../common/decorators';
-import { RedisPublisherService } from '../../redis';
 
 @ApiTags('Ingestor')
 @Controller('ingestor')
 export class IngestorController {
-  constructor(
-    private readonly ingestorService: IngestorService,
-    private readonly redisPublisher: RedisPublisherService,
-  ) {}
+  constructor(private readonly ingestorService: IngestorService) {}
 
   @Get('subscriptions')
   @Public()
@@ -56,22 +44,5 @@ export class IngestorController {
     @Param('chainId', ParseIntPipe) chainId: number,
   ): Promise<IngestorSubscriptionDto[]> {
     return this.ingestorService.getSubscriptionsByChainId(chainId);
-  }
-
-  @Post('refresh')
-  @Public()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Trigger full refresh signal',
-    description:
-      'Publishes FULL_REFRESH signal to Redis channel to notify blockchain-event-ingestor to reload all configurations',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Refresh signal published successfully',
-  })
-  async triggerRefresh(): Promise<{ message: string }> {
-    await this.redisPublisher.publishFullRefresh();
-    return { message: 'Refresh signal published successfully' };
   }
 }

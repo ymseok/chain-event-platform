@@ -1,9 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  getChainSyncStatuses,
-  getChainSyncStatus,
-  triggerIngestorRefresh,
-} from '../api/chain-sync-status';
+import { useQuery } from '@tanstack/react-query';
+import { getChainSyncStatuses, getChainSyncStatus } from '../api/chain-sync-status';
 
 const chainSyncStatusKeys = {
   all: ['chain-sync-status'] as const,
@@ -25,17 +21,5 @@ export function useChainSyncStatus(chainId: number) {
     queryFn: () => getChainSyncStatus(chainId),
     enabled: !!chainId,
     refetchInterval: 10000,
-  });
-}
-
-export function useTriggerIngestorRefresh() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: triggerIngestorRefresh,
-    onSuccess: () => {
-      // Invalidate chain sync status queries to fetch fresh data
-      queryClient.invalidateQueries({ queryKey: chainSyncStatusKeys.all });
-    },
   });
 }

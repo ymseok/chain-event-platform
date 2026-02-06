@@ -35,7 +35,7 @@ const updateChainSchema = z.object({
     .int()
     .min(1, 'Block time must be at least 1 second')
     .max(3600, 'Block time must be at most 3600 seconds'),
-  status: z.enum(['ACTIVE', 'INACTIVE']),
+  enabled: z.boolean(),
 });
 
 type UpdateChainForm = z.infer<typeof updateChainSchema>;
@@ -67,11 +67,11 @@ export function EditChainDialog({
       chainId: chain.chainId,
       rpcUrl: chain.rpcUrl,
       blockTime: chain.blockTime,
-      status: chain.status,
+      enabled: chain.enabled,
     },
   });
 
-  const status = watch('status');
+  const enabled = watch('enabled');
 
   useEffect(() => {
     reset({
@@ -79,7 +79,7 @@ export function EditChainDialog({
       chainId: chain.chainId,
       rpcUrl: chain.rpcUrl,
       blockTime: chain.blockTime,
-      status: chain.status,
+      enabled: chain.enabled,
     });
   }, [chain, reset]);
 
@@ -159,23 +159,21 @@ export function EditChainDialog({
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="enabled">Enabled</Label>
               <Select
-                value={status}
-                onValueChange={(value) =>
-                  setValue('status', value as 'ACTIVE' | 'INACTIVE')
-                }
+                value={enabled ? 'true' : 'false'}
+                onValueChange={(value) => setValue('enabled', value === 'true')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  <SelectItem value="true">Enabled</SelectItem>
+                  <SelectItem value="false">Disabled</SelectItem>
                 </SelectContent>
               </Select>
-              {errors.status && (
-                <p className="text-sm text-destructive">{errors.status.message}</p>
+              {errors.enabled && (
+                <p className="text-sm text-destructive">{errors.enabled.message}</p>
               )}
             </div>
           </div>

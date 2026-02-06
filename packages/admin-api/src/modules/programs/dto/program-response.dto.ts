@@ -40,7 +40,12 @@ export class ProgramResponseDto {
   @ApiPropertyOptional({ type: ChainResponseDto })
   chain?: ChainResponseDto;
 
-  static fromEntity(entity: Program & { chain?: Chain }): ProgramResponseDto {
+  @ApiPropertyOptional()
+  _count?: { events: number };
+
+  static fromEntity(
+    entity: Program & { chain?: Chain | null; _count?: { events: number } },
+  ): ProgramResponseDto {
     return {
       id: entity.id,
       applicationId: entity.applicationId,
@@ -53,6 +58,7 @@ export class ProgramResponseDto {
       chain: entity.chain
         ? { id: entity.chain.id, name: entity.chain.name, chainId: entity.chain.chainId }
         : undefined,
+      _count: entity._count,
     };
   }
 }

@@ -45,7 +45,7 @@ export class ChainManagerService {
 
     // Start pollers for active chains
     for (const chain of data.chains) {
-      if (chain.status === 'ACTIVE') {
+      if (chain.enabled) {
         await this.startPoller(chain);
       }
     }
@@ -154,7 +154,7 @@ export class ChainManagerService {
         if (!existingChain) {
           // New chain
           this.chains.set(chain.id, chain);
-          if (chain.status === 'ACTIVE') {
+          if (chain.enabled) {
             const chainSubs = data.subscriptions.filter((s) => s.chainId === chain.id);
             this.subscriptions.set(chain.id, chainSubs);
             await this.startPoller(chain);
@@ -164,7 +164,7 @@ export class ChainManagerService {
           await this.stopPoller(chain.id);
           this.chains.set(chain.id, chain);
 
-          if (chain.status === 'ACTIVE') {
+          if (chain.enabled) {
             const chainSubs = data.subscriptions.filter((s) => s.chainId === chain.id);
             this.subscriptions.set(chain.id, chainSubs);
             await this.startPoller(chain);
@@ -290,7 +290,7 @@ export class ChainManagerService {
   private chainNeedsRestart(oldChain: Chain, newChain: Chain): boolean {
     return (
       oldChain.rpcUrl !== newChain.rpcUrl ||
-      oldChain.status !== newChain.status ||
+      oldChain.enabled !== newChain.enabled ||
       oldChain.blockTime !== newChain.blockTime
     );
   }

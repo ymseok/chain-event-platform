@@ -6,7 +6,7 @@ import {
   IsUrl,
   IsInt,
   IsPositive,
-  IsEnum,
+  IsBoolean,
   Min,
   Max,
 } from 'class-validator';
@@ -36,8 +36,8 @@ export class UpdateChainDto {
   @Max(3600)
   blockTime?: number;
 
-  @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE'] })
-  @IsEnum(['ACTIVE', 'INACTIVE'])
+  @ApiPropertyOptional({ description: 'Whether the chain is enabled for monitoring' })
+  @IsBoolean()
   @IsOptional()
-  status?: 'ACTIVE' | 'INACTIVE';
+  enabled?: boolean;
 }

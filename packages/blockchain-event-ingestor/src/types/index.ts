@@ -5,7 +5,7 @@ export interface Chain {
   name: string;
   rpcUrl: string;
   blockTime: number;
-  status: 'ACTIVE' | 'INACTIVE';
+  enabled: boolean;
 }
 
 // Subscription types

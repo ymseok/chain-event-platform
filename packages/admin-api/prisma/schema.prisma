@@ -101,7 +101,7 @@ model Chain {
   chainId   Int      @unique @map("chain_id")
   rpcUrl    String   @map("rpc_url") @db.VarChar(500)
   blockTime Int      @default(12) @map("block_time")
-  status    Status   @default(ACTIVE)
+  enabled   Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

@@ -11,15 +11,15 @@ export class ChainResponseDto {
   @ApiProperty()
   chainId: number;
 
-  @ApiProperty()
-  status: string;
+  @ApiProperty({ description: 'Whether the chain is enabled for monitoring' })
+  enabled: boolean;
 
   static fromEntity(entity: Chain): ChainResponseDto {
     return {
       id: entity.id,
       name: entity.name,
       chainId: entity.chainId,
-      status: entity.status,
+      enabled: entity.enabled,
     };
   }
 }

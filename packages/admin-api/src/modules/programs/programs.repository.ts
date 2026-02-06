@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { Program, Prisma } from '@prisma/client';
+import { Program, Prisma, Chain } from '@prisma/client';
+
+export type ProgramWithChainAndCount = Program & {
+  chain: Chain | null;
+  _count: { events: number };
+};
 
 @Injectable()
 export class ProgramsRepository {
@@ -28,14 +33,17 @@ export class ProgramsRepository {
     applicationId: string,
     skip: number,
     take: number,
-  ): Promise<[Program[], number]> {
+  ): Promise<[ProgramWithChainAndCount[], number]> {
     const [programs, total] = await Promise.all([
       this.prisma.program.findMany({
         where: { applicationId },
         skip,
         take,
         orderBy: { createdAt: 'desc' },
-        include: { chain: true },
+        include: {
+          chain: true,
+          _count: { select: { events: true } },
+        },
       }),
       this.prisma.program.count({ where: { applicationId } }),
     ]);

@@ -17,8 +17,8 @@ export class ChainAdminResponseDto {
   @ApiProperty()
   blockTime: number;
 
-  @ApiProperty()
-  status: string;
+  @ApiProperty({ description: 'Whether the chain is enabled for monitoring' })
+  enabled: boolean;
 
   @ApiProperty()
   createdAt: Date;
@@ -33,7 +33,7 @@ export class ChainAdminResponseDto {
       chainId: entity.chainId,
       rpcUrl: entity.rpcUrl,
       blockTime: entity.blockTime,
-      status: entity.status,
+      enabled: entity.enabled,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };

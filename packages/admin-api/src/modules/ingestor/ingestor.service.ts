@@ -11,9 +11,9 @@ export class IngestorService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getSubscriptions(): Promise<IngestorSubscriptionsResponseDto> {
-    // Get all active chains
+    // Get all enabled chains
     const chains = await this.prisma.chain.findMany({
-      where: { status: 'ACTIVE' },
+      where: { enabled: true },
       orderBy: { id: 'asc' },
     });
 
@@ -25,7 +25,7 @@ export class IngestorService {
           program: {
             status: 'ACTIVE',
             chain: {
-              status: 'ACTIVE',
+              enabled: true,
             },
           },
         },
@@ -56,7 +56,7 @@ export class IngestorService {
       name: chain.name,
       rpcUrl: chain.rpcUrl,
       blockTime: chain.blockTime,
-      status: chain.status,
+      enabled: chain.enabled,
     }));
 
     const subscriptionDtos: IngestorSubscriptionDto[] = subscriptions.map((sub) => ({

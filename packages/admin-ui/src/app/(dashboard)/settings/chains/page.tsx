@@ -14,12 +14,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { StatusBadge, EmptyState, ConfirmDialog } from '@/components/common';
+import { EmptyState, ConfirmDialog } from '@/components/common';
+import { Switch } from '@/components/ui/switch';
 import {
   useChainsAdmin,
   useDeleteChain,
   useCheckChainRpc,
-  useTriggerIngestorRefresh,
+  useUpdateChain,
 } from '@/lib/hooks';
 import { formatDate, truncateMiddle } from '@/lib/utils';
 import { CreateChainDialog } from './create-chain-dialog';
@@ -31,11 +32,12 @@ export default function ChainsPage() {
   const [chainToEdit, setChainToEdit] = useState<Chain | null>(null);
   const [chainToDelete, setChainToDelete] = useState<Chain | null>(null);
   const [checkingRpcId, setCheckingRpcId] = useState<number | null>(null);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const { data: chains, isLoading } = useChainsAdmin();
   const deleteMutation = useDeleteChain();
   const checkRpcMutation = useCheckChainRpc();
-  const triggerRefresh = useTriggerIngestorRefresh();
+  const updateMutation = useUpdateChain();
 
   const handleDelete = async () => {
     if (!chainToDelete) return;
@@ -66,12 +68,20 @@ export default function ChainsPage() {
     }
   };
 
-  const handleRefreshIngestor = async () => {
+  const handleToggleEnabled = async (chain: Chain) => {
+    setTogglingId(chain.id);
     try {
-      await triggerRefresh.mutateAsync();
-      toast.success('Refresh signal sent to ingestor');
-    } catch {
-      toast.error('Failed to send refresh signal');
+      await updateMutation.mutateAsync({
+        id: chain.id,
+        data: { enabled: !chain.enabled },
+      });
+      toast.success(`Chain ${!chain.enabled ? 'enabled' : 'disabled'} successfully`);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to update chain';
+      toast.error(message);
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -97,20 +107,10 @@ export default function ChainsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Blockchain Networks</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={handleRefreshIngestor}
-              disabled={triggerRefresh.isPending}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${triggerRefresh.isPending ? 'animate-spin' : ''}`} />
-              Refresh Ingestor
-            </Button>
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Chain
-            </Button>
-          </div>
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Chain
+          </Button>
         </CardHeader>
         <CardContent>
           {!chains || chains.length === 0 ? (
@@ -153,7 +153,11 @@ export default function ChainsPage() {
                     </TableCell>
                     <TableCell>{chain.blockTime}s</TableCell>
                     <TableCell>
-                      <StatusBadge status={chain.status} />
+                      <Switch
+                        checked={chain.enabled}
+                        disabled={togglingId === chain.id}
+                        onCheckedChange={() => handleToggleEnabled(chain)}
+                      />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {formatDate(chain.createdAt)}

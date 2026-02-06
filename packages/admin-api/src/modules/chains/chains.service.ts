@@ -24,7 +24,7 @@ export class ChainsService {
 
   async findAll(): Promise<ChainResponseDto[]> {
     const chains = await this.prisma.chain.findMany({
-      where: { status: 'ACTIVE' },
+      where: { enabled: true },
       orderBy: { id: 'asc' },
     });
     return chains.map(ChainResponseDto.fromEntity);
@@ -72,7 +72,7 @@ export class ChainsService {
         chainId: dto.chainId,
         rpcUrl: dto.rpcUrl,
         blockTime: dto.blockTime ?? 12,
-        status: 'ACTIVE',
+        enabled: true,
       },
     });
 
@@ -154,13 +154,13 @@ export class ChainsService {
       const blockNumber = await provider.getBlockNumber();
       const responseTimeMs = Date.now() - startTime;
 
-      // If chain was INACTIVE and RPC check succeeds, set to ACTIVE
-      if (chain.status === 'INACTIVE') {
+      // If chain was disabled and RPC check succeeds, set to enabled
+      if (!chain.enabled) {
         await this.prisma.chain.update({
           where: { id },
-          data: { status: 'ACTIVE' },
+          data: { enabled: true },
         });
-        // Publish config refresh signal when status changes
+        // Publish config refresh signal when enabled changes
         await this.redisPublisher.publishChainUpdated();
       }
 
@@ -173,13 +173,13 @@ export class ChainsService {
     } catch (error) {
       const responseTimeMs = Date.now() - startTime;
 
-      // Set chain to INACTIVE on RPC failure
-      if (chain.status === 'ACTIVE') {
+      // Set chain to disabled on RPC failure
+      if (chain.enabled) {
         await this.prisma.chain.update({
           where: { id },
-          data: { status: 'INACTIVE' },
+          data: { enabled: false },
         });
-        // Publish config refresh signal when status changes
+        // Publish config refresh signal when enabled changes
         await this.redisPublisher.publishChainUpdated();
       }
 
