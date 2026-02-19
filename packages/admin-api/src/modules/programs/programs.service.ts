@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { AppRole, Prisma } from '@prisma/client';
+import { InterfaceAbi } from 'ethers';
 import { ProgramsRepository } from './programs.repository';
 import { ApplicationsService } from '../applications/applications.service';
 import { ChainsService } from '../chains/chains.service';
@@ -9,8 +11,6 @@ import { UpdateProgramDto } from './dto/update-program.dto';
 import { ProgramResponseDto, ProgramDetailResponseDto } from './dto/program-response.dto';
 import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 import { AbiParserUtil } from '../../common/utils';
-import { InterfaceAbi } from 'ethers';
-import { Prisma } from '@prisma/client';
 import {
   EntityNotFoundException,
   DuplicateEntityException,
@@ -31,8 +31,9 @@ export class ProgramsService {
     userId: string,
     applicationId: string,
     createDto: CreateProgramDto,
+    isRoot: boolean = false,
   ): Promise<ProgramResponseDto> {
-    await this.applicationsService.validateOwnership(userId, applicationId);
+    await this.applicationsService.validateAccess(userId, applicationId, AppRole.MEMBER, isRoot);
 
     const chain = await this.chainsService.findById(createDto.chainId);
     if (!chain) {
@@ -87,8 +88,9 @@ export class ProgramsService {
     userId: string,
     applicationId: string,
     pagination: PaginationQueryDto,
+    isRoot: boolean = false,
   ): Promise<PaginatedResponseDto<ProgramResponseDto>> {
-    await this.applicationsService.validateOwnership(userId, applicationId);
+    await this.applicationsService.validateAccess(userId, applicationId, AppRole.GUEST, isRoot);
 
     const [programs, total] = await this.programsRepository.findAllByApplicationId(
       applicationId,
@@ -103,13 +105,13 @@ export class ProgramsService {
     });
   }
 
-  async findOne(userId: string, id: string): Promise<ProgramDetailResponseDto> {
+  async findOne(userId: string, id: string, isRoot: boolean = false): Promise<ProgramDetailResponseDto> {
     const program = await this.programsRepository.findByIdWithEvents(id);
     if (!program) {
       throw new EntityNotFoundException('Program', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, program.applicationId);
+    await this.applicationsService.validateAccess(userId, program.applicationId, AppRole.GUEST, isRoot);
     return ProgramDetailResponseDto.fromEntity(program);
   }
 
@@ -117,13 +119,14 @@ export class ProgramsService {
     userId: string,
     id: string,
     updateDto: UpdateProgramDto,
+    isRoot: boolean = false,
   ): Promise<ProgramResponseDto> {
     const program = await this.programsRepository.findById(id);
     if (!program) {
       throw new EntityNotFoundException('Program', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, program.applicationId);
+    await this.applicationsService.validateAccess(userId, program.applicationId, AppRole.MEMBER, isRoot);
 
     let parsedAbi: InterfaceAbi | undefined;
     if (updateDto.abi) {
@@ -156,26 +159,26 @@ export class ProgramsService {
     return ProgramResponseDto.fromEntity(updated);
   }
 
-  async remove(userId: string, id: string): Promise<void> {
+  async remove(userId: string, id: string, isRoot: boolean = false): Promise<void> {
     const program = await this.programsRepository.findById(id);
     if (!program) {
       throw new EntityNotFoundException('Program', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, program.applicationId);
+    await this.applicationsService.validateAccess(userId, program.applicationId, AppRole.MEMBER, isRoot);
     await this.programsRepository.delete(id);
 
     // Publish config refresh signal
     await this.redisPublisher.publishProgramDeleted();
   }
 
-  async toggleStatus(userId: string, id: string): Promise<ProgramResponseDto> {
+  async toggleStatus(userId: string, id: string, isRoot: boolean = false): Promise<ProgramResponseDto> {
     const program = await this.programsRepository.findById(id);
     if (!program) {
       throw new EntityNotFoundException('Program', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, program.applicationId);
+    await this.applicationsService.validateAccess(userId, program.applicationId, AppRole.MEMBER, isRoot);
 
     const newStatus = program.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     const updated = await this.programsRepository.update(id, { status: newStatus });

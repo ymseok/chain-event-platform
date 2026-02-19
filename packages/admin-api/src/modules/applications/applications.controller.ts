@@ -37,10 +37,10 @@ export class ApplicationsController {
   @ApiOperation({ summary: 'Get all applications for current user' })
   @ApiResponse({ status: 200, description: 'List of applications' })
   async findAll(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Query() pagination: PaginationQueryDto,
   ): Promise<PaginatedResponseDto<ApplicationResponseDto>> {
-    return this.applicationsService.findAllByUserId(userId, pagination);
+    return this.applicationsService.findAllByUserId(user.id, user.isRoot, pagination);
   }
 
   @Get(':id')
@@ -48,10 +48,10 @@ export class ApplicationsController {
   @ApiResponse({ status: 200, description: 'Application details', type: ApplicationResponseDto })
   @ApiResponse({ status: 404, description: 'Application not found' })
   async findOne(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ApplicationResponseDto> {
-    return this.applicationsService.findOne(userId, id);
+    return this.applicationsService.findOne(user.id, id, user.isRoot);
   }
 
   @Patch(':id')
@@ -59,11 +59,11 @@ export class ApplicationsController {
   @ApiResponse({ status: 200, description: 'Application updated', type: ApplicationResponseDto })
   @ApiResponse({ status: 404, description: 'Application not found' })
   async update(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateApplicationDto,
   ): Promise<ApplicationResponseDto> {
-    return this.applicationsService.update(userId, id, updateDto);
+    return this.applicationsService.update(user.id, id, updateDto, user.isRoot);
   }
 
   @Delete(':id')
@@ -71,9 +71,9 @@ export class ApplicationsController {
   @ApiResponse({ status: 200, description: 'Application deleted' })
   @ApiResponse({ status: 404, description: 'Application not found' })
   async remove(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
-    return this.applicationsService.remove(userId, id);
+    return this.applicationsService.remove(user.id, id, user.isRoot);
   }
 }

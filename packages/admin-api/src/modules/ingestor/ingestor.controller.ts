@@ -13,7 +13,7 @@ import {
   IngestorInstancesResponseDto,
   RebalanceResponseDto,
 } from './dto';
-import { Public } from '../../common/decorators';
+import { Public, RootOnly } from '../../common/decorators';
 
 @ApiTags('Ingestor')
 @Controller('ingestor')
@@ -71,6 +71,7 @@ export class IngestorController {
   }
 
   @Post('rebalance')
+  @RootOnly()
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Trigger ingestor rebalancing',

@@ -15,6 +15,7 @@ const tabs = [
   { name: 'Programs', href: '/programs' },
   { name: 'Webhooks', href: '/webhooks' },
   { name: 'Subscriptions', href: '/subscriptions' },
+  { name: 'Members', href: '/members' },
   { name: 'Settings', href: '/settings' },
 ];
 

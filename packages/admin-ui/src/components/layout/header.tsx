@@ -3,10 +3,16 @@
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { LogOut, User, Bell, Search, AppWindow, Loader2 } from 'lucide-react';
+import { LogOut, User, Bell, Search, AppWindow, Loader2, Check, X, Mail } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +24,9 @@ import {
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useAppStore } from '@/lib/stores/app-store';
 import { useApplications } from '@/lib/hooks/use-applications';
-import type { Application } from '@/types';
+import { useMyPendingInvites, useAcceptInvite, useDeclineInvite } from '@/lib/hooks/use-members';
+import { toast } from 'sonner';
+import type { Application, Invite } from '@/types';
 
 interface SearchResult {
   id: string;
@@ -208,10 +216,7 @@ export function Header() {
 
       <div className="flex items-center gap-3">
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
-        </Button>
+        <NotificationBell />
 
         {/* User Menu */}
         <DropdownMenu>
@@ -251,5 +256,107 @@ export function Header() {
         </DropdownMenu>
       </div>
     </header>
+  );
+}
+
+function NotificationBell() {
+  const { data: pendingInvites = [] } = useMyPendingInvites();
+  const acceptMutation = useAcceptInvite();
+  const declineMutation = useDeclineInvite();
+  const [open, setOpen] = useState(false);
+
+  const handleAccept = (invite: Invite) => {
+    acceptMutation.mutate(invite.token, {
+      onSuccess: () => {
+        toast.success(`Joined "${invite.applicationName}" successfully`);
+      },
+      onError: () => {
+        toast.error('Failed to accept invitation');
+      },
+    });
+  };
+
+  const handleDecline = (invite: Invite) => {
+    declineMutation.mutate(invite.token, {
+      onSuccess: () => {
+        toast.success('Invitation declined');
+      },
+      onError: () => {
+        toast.error('Failed to decline invitation');
+      },
+    });
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+          <Bell className="h-5 w-5" />
+          {pendingInvites.length > 0 && (
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h4 className="text-sm font-semibold">Invitations</h4>
+          {pendingInvites.length > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {pendingInvites.length}
+            </Badge>
+          )}
+        </div>
+        <div className="max-h-80 overflow-y-auto">
+          {pendingInvites.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <Mail className="h-8 w-8 mb-2 opacity-50" />
+              <p className="text-sm">No pending invitations</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {pendingInvites.map((invite: Invite) => (
+                <div key={invite.id} className="px-4 py-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">
+                        {invite.applicationName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        from {invite.senderName}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] shrink-0">
+                      {invite.role}
+                    </Badge>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-7 text-xs text-green-500 border-green-500/30 hover:bg-green-500/10 hover:text-green-400"
+                      onClick={() => handleAccept(invite)}
+                      disabled={acceptMutation.isPending || declineMutation.isPending}
+                    >
+                      <Check className="h-3 w-3 mr-1" />
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-500/10 hover:text-red-400"
+                      onClick={() => handleDecline(invite)}
+                      disabled={acceptMutation.isPending || declineMutation.isPending}
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Decline
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

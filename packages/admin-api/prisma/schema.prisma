@@ -34,6 +34,19 @@ enum SyncStatus {
   STOPPED
 }
 
+enum AppRole {
+  OWNER
+  MEMBER
+  GUEST
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
 // ============================================
 // USER & AUTHENTICATION
 // ============================================
@@ -43,10 +56,13 @@ model User {
   email     String   @unique @db.VarChar(255)
   password  String   @db.VarChar(255)
   name      String   @db.VarChar(100)
+  isRoot    Boolean  @default(false) @map("is_root")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   applications Application[]
+  memberships  ApplicationMember[]
+  sentInvites  ApplicationInvite[] @relation("InviteSender")
 
   @@map("users")
 }
@@ -67,9 +83,49 @@ model Application {
   apiKeys  ApiKey[]
   programs Program[]
   webhooks Webhook[]
+  members  ApplicationMember[]
+  invites  ApplicationInvite[]
 
   @@index([userId])
   @@map("applications")
+}
+
+model ApplicationMember {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  role          AppRole  @default(MEMBER)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, userId])
+  @@index([applicationId])
+  @@index([userId])
+  @@map("application_members")
+}
+
+model ApplicationInvite {
+  id            String       @id @default(uuid()) @db.Uuid
+  applicationId String       @map("application_id") @db.Uuid
+  email         String       @db.VarChar(255)
+  role          AppRole      @default(MEMBER)
+  status        InviteStatus @default(PENDING)
+  invitedBy     String       @map("invited_by") @db.Uuid
+  token         String       @unique @db.VarChar(64)
+  expiresAt     DateTime     @map("expires_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  sender      User        @relation("InviteSender", fields: [invitedBy], references: [id])
+
+  @@index([applicationId])
+  @@index([email])
+  @@index([token])
+  @@map("application_invites")
 }
 
 model ApiKey {

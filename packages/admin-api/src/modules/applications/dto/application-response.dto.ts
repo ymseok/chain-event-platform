@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Application } from '@prisma/client';
+import { Application, AppRole } from '@prisma/client';
 
 export class ApplicationResponseDto {
   @ApiProperty()
@@ -14,18 +14,22 @@ export class ApplicationResponseDto {
   @ApiPropertyOptional()
   description: string | null;
 
+  @ApiPropertyOptional({ enum: AppRole, description: 'Current user role in this application' })
+  myRole?: AppRole;
+
   @ApiProperty()
   createdAt: Date;
 
   @ApiProperty()
   updatedAt: Date;
 
-  static fromEntity(entity: Application): ApplicationResponseDto {
+  static fromEntity(entity: Application, myRole?: AppRole): ApplicationResponseDto {
     return {
       id: entity.id,
       userId: entity.userId,
       name: entity.name,
       description: entity.description,
+      myRole,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };

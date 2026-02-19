@@ -10,14 +10,15 @@ import {
   DispatcherInstancesResponseDto,
   DispatcherRebalanceResponseDto,
 } from './dto';
+import { RootOnly } from '../../common/decorators';
 
 @ApiTags('Dispatcher')
+@ApiBearerAuth()
 @Controller('dispatcher')
 export class DispatcherController {
   constructor(private readonly dispatcherService: DispatcherService) {}
 
   @Get('instances')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get all active dispatcher instances',
     description:
@@ -33,7 +34,7 @@ export class DispatcherController {
   }
 
   @Post('rebalance')
-  @ApiBearerAuth()
+  @RootOnly()
   @ApiOperation({
     summary: 'Trigger dispatcher rebalancing',
     description:

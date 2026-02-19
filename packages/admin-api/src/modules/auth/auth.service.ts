@@ -34,6 +34,12 @@ export class AuthService {
       password: hashedPassword,
     });
 
+    // First registered user becomes root
+    const userCount = await this.usersService.count();
+    if (userCount === 1) {
+      await this.usersService.setRoot(user.id, true);
+    }
+
     return this.generateTokens(user.id, user.email);
   }
 
@@ -68,12 +74,14 @@ export class AuthService {
     }
   }
 
-  async validateUser(payload: JwtPayload): Promise<{ id: string; email: string } | null> {
+  async validateUser(
+    payload: JwtPayload,
+  ): Promise<{ id: string; email: string; isRoot: boolean } | null> {
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       return null;
     }
-    return { id: user.id, email: user.email };
+    return { id: user.id, email: user.email, isRoot: user.isRoot };
   }
 
   async getProfile(userId: string): Promise<ProfileDto> {
@@ -86,6 +94,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
+      isRoot: user.isRoot,
       createdAt: user.createdAt,
     };
   }

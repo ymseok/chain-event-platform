@@ -8,7 +8,6 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ProgramsService } from './programs.service';
@@ -28,62 +27,62 @@ export class ProgramsController {
   @ApiOperation({ summary: 'Create a new program (smart contract)' })
   @ApiResponse({ status: 201, description: 'Program created', type: ProgramResponseDto })
   async create(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('appId', ParseUUIDPipe) applicationId: string,
     @Body() createDto: CreateProgramDto,
   ): Promise<ProgramResponseDto> {
-    return this.programsService.create(userId, applicationId, createDto);
+    return this.programsService.create(user.id, applicationId, createDto, user.isRoot);
   }
 
   @Get('applications/:appId/programs')
   @ApiOperation({ summary: 'Get all programs for an application' })
   @ApiResponse({ status: 200, description: 'List of programs' })
   async findAll(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('appId', ParseUUIDPipe) applicationId: string,
     @Query() pagination: PaginationQueryDto,
   ): Promise<PaginatedResponseDto<ProgramResponseDto>> {
-    return this.programsService.findAllByApplicationId(userId, applicationId, pagination);
+    return this.programsService.findAllByApplicationId(user.id, applicationId, pagination, user.isRoot);
   }
 
   @Get('programs/:id')
   @ApiOperation({ summary: 'Get program details with events' })
   @ApiResponse({ status: 200, description: 'Program details', type: ProgramDetailResponseDto })
   async findOne(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ProgramDetailResponseDto> {
-    return this.programsService.findOne(userId, id);
+    return this.programsService.findOne(user.id, id, user.isRoot);
   }
 
   @Patch('programs/:id')
   @ApiOperation({ summary: 'Update program' })
   @ApiResponse({ status: 200, description: 'Program updated', type: ProgramResponseDto })
   async update(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateProgramDto,
   ): Promise<ProgramResponseDto> {
-    return this.programsService.update(userId, id, updateDto);
+    return this.programsService.update(user.id, id, updateDto, user.isRoot);
   }
 
   @Delete('programs/:id')
   @ApiOperation({ summary: 'Delete program' })
   @ApiResponse({ status: 200, description: 'Program deleted' })
   async remove(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
-    return this.programsService.remove(userId, id);
+    return this.programsService.remove(user.id, id, user.isRoot);
   }
 
   @Patch('programs/:id/status')
   @ApiOperation({ summary: 'Toggle program status' })
   @ApiResponse({ status: 200, description: 'Status updated', type: ProgramResponseDto })
   async toggleStatus(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ProgramResponseDto> {
-    return this.programsService.toggleStatus(userId, id);
+    return this.programsService.toggleStatus(user.id, id, user.isRoot);
   }
 }

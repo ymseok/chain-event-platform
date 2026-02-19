@@ -10,6 +10,9 @@ export class ProfileDto {
   @ApiProperty({ description: 'User name', example: 'John Doe' })
   name: string;
 
+  @ApiProperty({ description: 'Whether user is root admin', example: false })
+  isRoot: boolean;
+
   @ApiProperty({ description: 'Account creation date', example: '2024-01-01T00:00:00.000Z' })
   createdAt: Date;
 }

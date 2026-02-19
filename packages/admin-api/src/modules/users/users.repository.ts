@@ -23,4 +23,15 @@ export class UsersRepository {
       where: { email },
     });
   }
+
+  async count(): Promise<number> {
+    return this.prisma.user.count();
+  }
+
+  async updateRoot(id: string, isRoot: boolean): Promise<void> {
+    await this.prisma.user.update({
+      where: { id },
+      data: { isRoot },
+    });
+  }
 }

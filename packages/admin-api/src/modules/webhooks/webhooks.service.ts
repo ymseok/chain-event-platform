@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AppRole } from '@prisma/client';
 import { WebhooksRepository } from './webhooks.repository';
 import { ApplicationsService } from '../applications/applications.service';
 import { CreateWebhookDto } from './dto/create-webhook.dto';
@@ -21,8 +22,9 @@ export class WebhooksService {
     userId: string,
     applicationId: string,
     createDto: CreateWebhookDto,
+    isRoot: boolean = false,
   ): Promise<WebhookResponseDto> {
-    await this.applicationsService.validateOwnership(userId, applicationId);
+    await this.applicationsService.validateAccess(userId, applicationId, AppRole.MEMBER, isRoot);
 
     const secret = CryptoUtil.generateWebhookSecret();
     const retryPolicy = createDto.retryPolicy || {
@@ -53,8 +55,9 @@ export class WebhooksService {
     userId: string,
     applicationId: string,
     pagination: PaginationQueryDto,
+    isRoot: boolean = false,
   ): Promise<PaginatedResponseDto<WebhookResponseDto>> {
-    await this.applicationsService.validateOwnership(userId, applicationId);
+    await this.applicationsService.validateAccess(userId, applicationId, AppRole.GUEST, isRoot);
 
     const [webhooks, total] = await this.webhooksRepository.findAllByApplicationId(
       applicationId,
@@ -69,13 +72,13 @@ export class WebhooksService {
     });
   }
 
-  async findOne(userId: string, id: string): Promise<WebhookResponseDto> {
+  async findOne(userId: string, id: string, isRoot: boolean = false): Promise<WebhookResponseDto> {
     const webhook = await this.webhooksRepository.findById(id);
     if (!webhook) {
       throw new EntityNotFoundException('Webhook', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, webhook.applicationId);
+    await this.applicationsService.validateAccess(userId, webhook.applicationId, AppRole.GUEST, isRoot);
     return WebhookResponseDto.fromEntity(webhook);
   }
 
@@ -83,13 +86,14 @@ export class WebhooksService {
     userId: string,
     id: string,
     updateDto: UpdateWebhookDto,
+    isRoot: boolean = false,
   ): Promise<WebhookResponseDto> {
     const webhook = await this.webhooksRepository.findById(id);
     if (!webhook) {
       throw new EntityNotFoundException('Webhook', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, webhook.applicationId);
+    await this.applicationsService.validateAccess(userId, webhook.applicationId, AppRole.MEMBER, isRoot);
 
     // Merge apiKey into headers as X-API-Key
     let headers = updateDto.headers;
@@ -114,23 +118,23 @@ export class WebhooksService {
     return WebhookResponseDto.fromEntity(updated);
   }
 
-  async remove(userId: string, id: string): Promise<void> {
+  async remove(userId: string, id: string, isRoot: boolean = false): Promise<void> {
     const webhook = await this.webhooksRepository.findById(id);
     if (!webhook) {
       throw new EntityNotFoundException('Webhook', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, webhook.applicationId);
+    await this.applicationsService.validateAccess(userId, webhook.applicationId, AppRole.MEMBER, isRoot);
     await this.webhooksRepository.delete(id);
   }
 
-  async test(userId: string, id: string): Promise<WebhookTestResultDto> {
+  async test(userId: string, id: string, isRoot: boolean = false): Promise<WebhookTestResultDto> {
     const webhook = await this.webhooksRepository.findById(id);
     if (!webhook) {
       throw new EntityNotFoundException('Webhook', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, webhook.applicationId);
+    await this.applicationsService.validateAccess(userId, webhook.applicationId, AppRole.MEMBER, isRoot);
 
     const testPayload = {
       type: 'test',
@@ -171,13 +175,13 @@ export class WebhooksService {
     }
   }
 
-  async healthCheck(userId: string, id: string): Promise<WebhookTestResultDto> {
+  async healthCheck(userId: string, id: string, isRoot: boolean = false): Promise<WebhookTestResultDto> {
     const webhook = await this.webhooksRepository.findById(id);
     if (!webhook) {
       throw new EntityNotFoundException('Webhook', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, webhook.applicationId);
+    await this.applicationsService.validateAccess(userId, webhook.applicationId, AppRole.GUEST, isRoot);
 
     try {
       const startTime = Date.now();

@@ -9,4 +9,5 @@ export * from './webhooks';
 export * from './subscriptions';
 export * from './webhook-logs';
 export * from './ingestor';
+export * from './members';
 export { default as apiClient } from './client';

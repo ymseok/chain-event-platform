@@ -27,68 +27,68 @@ export class WebhooksController {
   @ApiOperation({ summary: 'Create a new webhook' })
   @ApiResponse({ status: 201, type: WebhookResponseDto })
   async create(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('appId', ParseUUIDPipe) applicationId: string,
     @Body() createDto: CreateWebhookDto,
   ): Promise<WebhookResponseDto> {
-    return this.webhooksService.create(userId, applicationId, createDto);
+    return this.webhooksService.create(user.id, applicationId, createDto, user.isRoot);
   }
 
   @Get('applications/:appId/webhooks')
   @ApiOperation({ summary: 'Get all webhooks for an application' })
   async findAll(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('appId', ParseUUIDPipe) applicationId: string,
     @Query() pagination: PaginationQueryDto,
   ): Promise<PaginatedResponseDto<WebhookResponseDto>> {
-    return this.webhooksService.findAllByApplicationId(userId, applicationId, pagination);
+    return this.webhooksService.findAllByApplicationId(user.id, applicationId, pagination, user.isRoot);
   }
 
   @Get('webhooks/:id')
   @ApiOperation({ summary: 'Get webhook details' })
   async findOne(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<WebhookResponseDto> {
-    return this.webhooksService.findOne(userId, id);
+    return this.webhooksService.findOne(user.id, id, user.isRoot);
   }
 
   @Patch('webhooks/:id')
   @ApiOperation({ summary: 'Update webhook' })
   async update(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateWebhookDto,
   ): Promise<WebhookResponseDto> {
-    return this.webhooksService.update(userId, id, updateDto);
+    return this.webhooksService.update(user.id, id, updateDto, user.isRoot);
   }
 
   @Delete('webhooks/:id')
   @ApiOperation({ summary: 'Delete webhook' })
   async remove(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
-    return this.webhooksService.remove(userId, id);
+    return this.webhooksService.remove(user.id, id, user.isRoot);
   }
 
   @Post('webhooks/:id/test')
   @ApiOperation({ summary: 'Test webhook connection' })
   @ApiResponse({ status: 200, type: WebhookTestResultDto })
   async test(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<WebhookTestResultDto> {
-    return this.webhooksService.test(userId, id);
+    return this.webhooksService.test(user.id, id, user.isRoot);
   }
 
   @Get('webhooks/:id/health')
   @ApiOperation({ summary: 'Check webhook endpoint health' })
   @ApiResponse({ status: 200, type: WebhookTestResultDto })
   async healthCheck(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<WebhookTestResultDto> {
-    return this.webhooksService.healthCheck(userId, id);
+    return this.webhooksService.healthCheck(user.id, id, user.isRoot);
   }
 }

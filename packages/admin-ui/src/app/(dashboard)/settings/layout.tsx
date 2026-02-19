@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Link2, Server, Send } from 'lucide-react';
+import { Link2, Server, Send, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 const settingsNavItems = [
   {
@@ -32,6 +33,8 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const user = useAuthStore((state) => state.user);
+  const isRoot = user?.isRoot ?? false;
 
   return (
     <div className="space-y-6">
@@ -41,6 +44,15 @@ export default function SettingsLayout({
           Manage global platform configurations
         </p>
       </div>
+
+      {!isRoot && (
+        <div className="flex items-center gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-4 py-3">
+          <ShieldAlert className="h-5 w-5 shrink-0 text-yellow-500" />
+          <p className="text-sm text-yellow-600 dark:text-yellow-400">
+            Settings are read-only. Only <span className="font-semibold">Root</span> accounts can modify global configurations.
+          </p>
+        </div>
+      )}
 
       <div className="flex gap-8">
         <nav className="w-64 shrink-0">

@@ -23,6 +23,7 @@ import {
   CreateChainDto,
   UpdateChainDto,
 } from './dto';
+import { RootOnly } from '../../common/decorators';
 
 @ApiTags('Chains')
 @ApiBearerAuth()
@@ -56,6 +57,7 @@ export class ChainsController {
   }
 
   @Post()
+  @RootOnly()
   @ApiOperation({ summary: 'Create a new blockchain network' })
   @ApiResponse({ status: 201, description: 'Chain created', type: ChainAdminResponseDto })
   @ApiResponse({ status: 409, description: 'Chain with same name or chainId already exists' })
@@ -64,6 +66,7 @@ export class ChainsController {
   }
 
   @Patch(':id')
+  @RootOnly()
   @ApiOperation({ summary: 'Update a blockchain network' })
   @ApiParam({ name: 'id', type: 'number' })
   @ApiResponse({ status: 200, description: 'Chain updated', type: ChainAdminResponseDto })
@@ -77,6 +80,7 @@ export class ChainsController {
   }
 
   @Delete(':id')
+  @RootOnly()
   @ApiOperation({ summary: 'Delete a blockchain network' })
   @ApiParam({ name: 'id', type: 'number' })
   @ApiResponse({ status: 200, description: 'Chain deleted' })
@@ -87,6 +91,7 @@ export class ChainsController {
   }
 
   @Post(':id/check-rpc')
+  @RootOnly()
   @ApiOperation({ summary: 'Check RPC connection for a blockchain network' })
   @ApiParam({ name: 'id', type: 'number' })
   @ApiResponse({ status: 200, description: 'RPC check result', type: RpcCheckResultDto })

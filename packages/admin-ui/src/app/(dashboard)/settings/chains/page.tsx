@@ -22,6 +22,7 @@ import {
   useCheckChainRpc,
   useUpdateChain,
 } from '@/lib/hooks';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import { formatDate, truncateMiddle } from '@/lib/utils';
 import { CreateChainDialog } from './create-chain-dialog';
 import { EditChainDialog } from './edit-chain-dialog';
@@ -33,6 +34,9 @@ export default function ChainsPage() {
   const [chainToDelete, setChainToDelete] = useState<Chain | null>(null);
   const [checkingRpcId, setCheckingRpcId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  const user = useAuthStore((state) => state.user);
+  const isRoot = user?.isRoot ?? false;
 
   const { data: chains, isLoading } = useChainsAdmin();
   const deleteMutation = useDeleteChain();
@@ -107,7 +111,7 @@ export default function ChainsPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Blockchain Networks</CardTitle>
-          <Button onClick={() => setIsCreateOpen(true)}>
+          <Button onClick={() => setIsCreateOpen(true)} disabled={!isRoot}>
             <Plus className="mr-2 h-4 w-4" />
             Add Chain
           </Button>
@@ -117,11 +121,19 @@ export default function ChainsPage() {
             <EmptyState
               icon={Link2}
               title="No chains configured"
-              description="Add blockchain networks to enable event monitoring."
-              action={{
-                label: 'Add Chain',
-                onClick: () => setIsCreateOpen(true),
-              }}
+              description={
+                isRoot
+                  ? 'Add blockchain networks to enable event monitoring.'
+                  : 'No blockchain networks configured. Contact a Root administrator to add chains.'
+              }
+              action={
+                isRoot
+                  ? {
+                      label: 'Add Chain',
+                      onClick: () => setIsCreateOpen(true),
+                    }
+                  : undefined
+              }
             />
           ) : (
             <Table>
@@ -155,7 +167,7 @@ export default function ChainsPage() {
                     <TableCell>
                       <Switch
                         checked={chain.enabled}
-                        disabled={togglingId === chain.id}
+                        disabled={!isRoot || togglingId === chain.id}
                         onCheckedChange={() => handleToggleEnabled(chain)}
                       />
                     </TableCell>
@@ -169,8 +181,8 @@ export default function ChainsPage() {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => handleCheckRpc(chain)}
-                          disabled={checkingRpcId === chain.id}
-                          title="Check RPC connection"
+                          disabled={!isRoot || checkingRpcId === chain.id}
+                          title={isRoot ? 'Check RPC connection' : 'Root access required'}
                         >
                           <RefreshCw
                             className={`h-4 w-4 ${
@@ -183,7 +195,8 @@ export default function ChainsPage() {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => setChainToEdit(chain)}
-                          title="Edit chain"
+                          disabled={!isRoot}
+                          title={isRoot ? 'Edit chain' : 'Root access required'}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -192,7 +205,8 @@ export default function ChainsPage() {
                           size="icon"
                           className="h-8 w-8 text-destructive"
                           onClick={() => setChainToDelete(chain)}
-                          title="Delete chain"
+                          disabled={!isRoot}
+                          title={isRoot ? 'Delete chain' : 'Root access required'}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

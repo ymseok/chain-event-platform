@@ -31,6 +31,38 @@ export class ApplicationsRepository {
     return [applications, total];
   }
 
+  async findAllByMembership(
+    userId: string,
+    skip: number,
+    take: number,
+  ): Promise<[Application[], number]> {
+    const where: Prisma.ApplicationWhereInput = {
+      members: { some: { userId } },
+    };
+    const [applications, total] = await Promise.all([
+      this.prisma.application.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.application.count({ where }),
+    ]);
+    return [applications, total];
+  }
+
+  async findAll(skip: number, take: number): Promise<[Application[], number]> {
+    const [applications, total] = await Promise.all([
+      this.prisma.application.findMany({
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.application.count(),
+    ]);
+    return [applications, total];
+  }
+
   async update(id: string, data: Prisma.ApplicationUpdateInput): Promise<Application> {
     return this.prisma.application.update({ where: { id }, data });
   }

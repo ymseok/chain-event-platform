@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { AppRole } from '@prisma/client';
 import { ApiKeysRepository } from './api-keys.repository';
 import { ApplicationsService } from '../applications/applications.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 import { ApiKeyResponseDto, ApiKeyCreatedResponseDto } from './dto/api-key-response.dto';
 import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 import { CryptoUtil } from '../../common/utils';
-import { EntityNotFoundException, ForbiddenException } from '../../common/exceptions';
+import { EntityNotFoundException } from '../../common/exceptions';
 
 @Injectable()
 export class ApiKeysService {
@@ -18,8 +19,9 @@ export class ApiKeysService {
     userId: string,
     applicationId: string,
     createDto: CreateApiKeyDto,
+    isRoot: boolean = false,
   ): Promise<ApiKeyCreatedResponseDto> {
-    await this.applicationsService.validateOwnership(userId, applicationId);
+    await this.applicationsService.validateAccess(userId, applicationId, AppRole.OWNER, isRoot);
 
     const rawKey = CryptoUtil.generateApiKey();
     const keyHash = CryptoUtil.sha256Hash(rawKey);
@@ -43,8 +45,9 @@ export class ApiKeysService {
     userId: string,
     applicationId: string,
     paginationQuery: PaginationQueryDto,
+    isRoot: boolean = false,
   ): Promise<PaginatedResponseDto<ApiKeyResponseDto>> {
-    await this.applicationsService.validateOwnership(userId, applicationId);
+    await this.applicationsService.validateAccess(userId, applicationId, AppRole.MEMBER, isRoot);
 
     const [apiKeys, total] = await this.apiKeysRepository.findAllByApplicationId(
       applicationId,
@@ -58,13 +61,13 @@ export class ApiKeysService {
     });
   }
 
-  async revoke(userId: string, id: string): Promise<void> {
+  async revoke(userId: string, id: string, isRoot: boolean = false): Promise<void> {
     const apiKey = await this.apiKeysRepository.findById(id);
     if (!apiKey) {
       throw new EntityNotFoundException('ApiKey', id);
     }
 
-    await this.applicationsService.validateOwnership(userId, apiKey.applicationId);
+    await this.applicationsService.validateAccess(userId, apiKey.applicationId, AppRole.OWNER, isRoot);
     await this.apiKeysRepository.revoke(id);
   }
 

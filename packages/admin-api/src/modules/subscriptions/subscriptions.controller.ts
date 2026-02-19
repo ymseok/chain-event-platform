@@ -27,57 +27,57 @@ export class SubscriptionsController {
   @ApiOperation({ summary: 'Create an event subscription' })
   @ApiResponse({ status: 201, type: SubscriptionResponseDto })
   async create(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('appId', ParseUUIDPipe) applicationId: string,
     @Body() createDto: CreateSubscriptionDto,
   ): Promise<SubscriptionResponseDto> {
-    return this.subscriptionsService.create(userId, applicationId, createDto);
+    return this.subscriptionsService.create(user.id, applicationId, createDto, user.isRoot);
   }
 
   @Get('applications/:appId/subscriptions')
   @ApiOperation({ summary: 'Get all subscriptions for an application' })
   async findAll(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('appId', ParseUUIDPipe) applicationId: string,
     @Query() pagination: PaginationQueryDto,
   ): Promise<PaginatedResponseDto<SubscriptionResponseDto>> {
-    return this.subscriptionsService.findAllByApplicationId(userId, applicationId, pagination);
+    return this.subscriptionsService.findAllByApplicationId(user.id, applicationId, pagination, user.isRoot);
   }
 
   @Get('subscriptions/:id')
   @ApiOperation({ summary: 'Get subscription details' })
   async findOne(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SubscriptionResponseDto> {
-    return this.subscriptionsService.findOne(userId, id);
+    return this.subscriptionsService.findOne(user.id, id, user.isRoot);
   }
 
   @Patch('subscriptions/:id')
   @ApiOperation({ summary: 'Update subscription' })
   async update(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateSubscriptionDto,
   ): Promise<SubscriptionResponseDto> {
-    return this.subscriptionsService.update(userId, id, updateDto);
+    return this.subscriptionsService.update(user.id, id, updateDto, user.isRoot);
   }
 
   @Delete('subscriptions/:id')
   @ApiOperation({ summary: 'Delete subscription' })
   async remove(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
-    return this.subscriptionsService.remove(userId, id);
+    return this.subscriptionsService.remove(user.id, id, user.isRoot);
   }
 
   @Patch('subscriptions/:id/status')
   @ApiOperation({ summary: 'Toggle subscription status' })
   async toggleStatus(
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; isRoot: boolean },
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SubscriptionResponseDto> {
-    return this.subscriptionsService.toggleStatus(userId, id);
+    return this.subscriptionsService.toggleStatus(user.id, id, user.isRoot);
   }
 }

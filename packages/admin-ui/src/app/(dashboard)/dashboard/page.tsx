@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { AppWindow, Code2, Webhook, Bell, Plus, ArrowRight, Activity, TrendingUp, BarChart3 } from 'lucide-react';
+import { AppWindow, Code2, Webhook, Bell, Plus, ArrowRight, TrendingUp, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader, StatsCard, EmptyState } from '@/components/common';
@@ -202,32 +202,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Live Activity */}
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm animate-slide-up opacity-0 stagger-5" style={{ animationFillMode: 'forwards' }}>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
-            Live Activity
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="relative">
-              <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center">
-                <Activity className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-muted-foreground/50 animate-pulse" />
-            </div>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Waiting for events...
-            </p>
-            <p className="text-xs text-muted-foreground/70 mt-1">
-              Activity will appear here in real-time
-            </p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

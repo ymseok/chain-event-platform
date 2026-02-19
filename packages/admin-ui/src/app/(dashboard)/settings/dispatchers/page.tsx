@@ -15,11 +15,15 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { useDispatcherInstances, useRebalanceDispatchers } from '@/lib/hooks';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 export default function DispatchersPage() {
   const [showRebalanceDialog, setShowRebalanceDialog] = useState(false);
   const { data, isLoading, error } = useDispatcherInstances();
   const rebalanceMutation = useRebalanceDispatchers();
+
+  const user = useAuthStore((state) => state.user);
+  const isRoot = user?.isRoot ?? false;
 
   const totalInstances = data?.instances.length ?? 0;
   const totalClaimedApps =
@@ -71,8 +75,9 @@ export default function DispatchersPage() {
         <h2 className="text-lg font-semibold">Webhook Dispatchers</h2>
         <Button
           onClick={() => setShowRebalanceDialog(true)}
-          disabled={totalInstances < 2}
+          disabled={!isRoot || totalInstances < 2}
           size="sm"
+          title={!isRoot ? 'Root access required' : undefined}
         >
           <RefreshCw className="h-4 w-4 mr-2" />
           Rebalance

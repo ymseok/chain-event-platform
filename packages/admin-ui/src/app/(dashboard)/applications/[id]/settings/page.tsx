@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const { data: app } = useApplication(appId);
+  const isOwner = app?.myRole === 'OWNER';
   const updateMutation = useUpdateApplication();
   const deleteMutation = useDeleteApplication();
   const { setCurrentApp } = useAppStore();
@@ -78,6 +79,12 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      {!isOwner && (
+        <div className="rounded-md border border-yellow-500/50 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-200">
+          Only owners can modify application settings.
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>General</CardTitle>
@@ -89,55 +96,59 @@ export default function SettingsPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" {...register('name')} />
+              <Input id="name" {...register('name')} disabled={!isOwner} />
               {errors.name && (
                 <p className="text-sm text-destructive">{errors.name.message}</p>
               )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" {...register('description')} />
+              <Textarea id="description" {...register('description')} disabled={!isOwner} />
               {errors.description && (
                 <p className="text-sm text-destructive">
                   {errors.description.message}
                 </p>
               )}
             </div>
-            <Button
-              type="submit"
-              disabled={!isDirty || updateMutation.isPending}
-            >
-              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
+            {isOwner && (
+              <Button
+                type="submit"
+                disabled={!isDirty || updateMutation.isPending}
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            )}
           </form>
         </CardContent>
       </Card>
 
-      <Card className="border-destructive">
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger Zone</CardTitle>
-          <CardDescription>
-            Irreversible and destructive actions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Delete this application</p>
-              <p className="text-sm text-muted-foreground">
-                Once deleted, this application and all its data will be
-                permanently removed.
-              </p>
+      {isOwner && (
+        <Card className="border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">Danger Zone</CardTitle>
+            <CardDescription>
+              Irreversible and destructive actions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Delete this application</p>
+                <p className="text-sm text-muted-foreground">
+                  Once deleted, this application and all its data will be
+                  permanently removed.
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => setIsDeleteOpen(true)}
+              >
+                Delete Application
+              </Button>
             </div>
-            <Button
-              variant="destructive"
-              onClick={() => setIsDeleteOpen(true)}
-            >
-              Delete Application
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <ConfirmDialog
         open={isDeleteOpen}

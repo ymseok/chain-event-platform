@@ -18,6 +18,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { WebhookLogsModule } from './modules/webhook-logs/webhook-logs.module';
 import { StatisticsModule } from './modules/statistics/statistics.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { MembersModule } from './modules/members/members.module';
 import { HealthModule } from './modules/health/health.module';
 import configuration from './common/config/configuration';
 import { validationSchema } from './common/config/validation.schema';
@@ -50,6 +51,7 @@ import { validationSchema } from './common/config/validation.schema';
     EventsModule,
     WebhooksModule,
     SubscriptionsModule,
+    MembersModule,
     WebhookLogsModule,
     StatisticsModule,
     DashboardModule,

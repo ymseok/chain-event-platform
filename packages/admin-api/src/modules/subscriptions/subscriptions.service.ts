@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AppRole } from '@prisma/client';
 import { SubscriptionsRepository } from './subscriptions.repository';
 import { ApplicationsService } from '../applications/applications.service';
 import { RedisPublisherService } from '../../redis';
@@ -20,8 +21,9 @@ export class SubscriptionsService {
     userId: string,
     applicationId: string,
     createDto: CreateSubscriptionDto,
+    isRoot: boolean = false,
   ): Promise<SubscriptionResponseDto> {
-    await this.applicationsService.validateOwnership(userId, applicationId);
+    await this.applicationsService.validateAccess(userId, applicationId, AppRole.MEMBER, isRoot);
 
     const subscription = await this.subscriptionsRepository.create({
       eventId: createDto.eventId,
@@ -41,8 +43,9 @@ export class SubscriptionsService {
     userId: string,
     applicationId: string,
     pagination: PaginationQueryDto,
+    isRoot: boolean = false,
   ): Promise<PaginatedResponseDto<SubscriptionResponseDto>> {
-    await this.applicationsService.validateOwnership(userId, applicationId);
+    await this.applicationsService.validateAccess(userId, applicationId, AppRole.GUEST, isRoot);
 
     const [subscriptions, total] = await this.subscriptionsRepository.findAllByApplicationId(
       applicationId,
@@ -57,7 +60,7 @@ export class SubscriptionsService {
     });
   }
 
-  async findOne(userId: string, id: string): Promise<SubscriptionResponseDto> {
+  async findOne(userId: string, id: string, isRoot: boolean = false): Promise<SubscriptionResponseDto> {
     const subscription = await this.subscriptionsRepository.findById(id);
     if (!subscription) {
       throw new EntityNotFoundException('EventSubscription', id);
@@ -69,6 +72,7 @@ export class SubscriptionsService {
     userId: string,
     id: string,
     updateDto: UpdateSubscriptionDto,
+    isRoot: boolean = false,
   ): Promise<SubscriptionResponseDto> {
     const subscription = await this.subscriptionsRepository.findById(id);
     if (!subscription) {
@@ -88,7 +92,7 @@ export class SubscriptionsService {
     return SubscriptionResponseDto.fromEntity(updated);
   }
 
-  async remove(userId: string, id: string): Promise<void> {
+  async remove(userId: string, id: string, isRoot: boolean = false): Promise<void> {
     const subscription = await this.subscriptionsRepository.findById(id);
     if (!subscription) {
       throw new EntityNotFoundException('EventSubscription', id);
@@ -99,7 +103,7 @@ export class SubscriptionsService {
     await this.redisPublisher.publishSubscriptionDeleted();
   }
 
-  async toggleStatus(userId: string, id: string): Promise<SubscriptionResponseDto> {
+  async toggleStatus(userId: string, id: string, isRoot: boolean = false): Promise<SubscriptionResponseDto> {
     const subscription = await this.subscriptionsRepository.findById(id);
     if (!subscription) {
       throw new EntityNotFoundException('EventSubscription', id);

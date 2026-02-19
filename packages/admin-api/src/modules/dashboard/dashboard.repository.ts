@@ -41,7 +41,8 @@ export class DashboardRepository {
       FROM webhook_logs wl
       INNER JOIN webhooks w ON w.id = wl.webhook_id
       INNER JOIN applications a ON a.id = w.application_id
-      WHERE a.user_id = ${userId}::uuid
+      INNER JOIN application_members am ON am.application_id = a.id
+      WHERE am.user_id = ${userId}::uuid
         AND wl.created_at >= ${startDate}
       GROUP BY DATE_TRUNC('day', wl.created_at)
       ORDER BY date ASC
@@ -88,9 +89,10 @@ export class DashboardRepository {
         a.name as application_name,
         COUNT(wl.id) as event_count
       FROM applications a
+      INNER JOIN application_members am ON am.application_id = a.id
       INNER JOIN webhooks w ON w.application_id = a.id
       INNER JOIN webhook_logs wl ON wl.webhook_id = w.id
-      WHERE a.user_id = ${userId}::uuid
+      WHERE am.user_id = ${userId}::uuid
         AND wl.created_at >= ${startDate}
       GROUP BY a.id, a.name
       ORDER BY event_count DESC
@@ -119,7 +121,8 @@ export class DashboardRepository {
       FROM webhook_logs wl
       INNER JOIN webhooks w ON w.id = wl.webhook_id
       INNER JOIN applications a ON a.id = w.application_id
-      WHERE a.user_id = ${userId}::uuid
+      INNER JOIN application_members am ON am.application_id = a.id
+      WHERE am.user_id = ${userId}::uuid
         AND wl.created_at >= ${startDate}
     `;
 

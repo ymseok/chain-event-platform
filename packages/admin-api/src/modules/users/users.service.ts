@@ -17,4 +17,12 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.usersRepository.findByEmail(email);
   }
+
+  async count(): Promise<number> {
+    return this.usersRepository.count();
+  }
+
+  async setRoot(id: string, isRoot: boolean): Promise<void> {
+    return this.usersRepository.updateRoot(id, isRoot);
+  }
 }

@@ -3,12 +3,15 @@ export type Status = 'ACTIVE' | 'INACTIVE';
 export type SubscriptionStatus = 'ACTIVE' | 'PAUSED';
 export type WebhookLogStatus = 'PENDING' | 'SUCCESS' | 'FAILED';
 export type SyncStatus = 'SYNCING' | 'SYNCED' | 'ERROR' | 'STOPPED';
+export type AppRole = 'OWNER' | 'MEMBER' | 'GUEST';
+export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
 
 // User
 export interface User {
   id: string;
   email: string;
   name: string;
+  isRoot: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -19,6 +22,7 @@ export interface Application {
   userId: string;
   name: string;
   description: string | null;
+  myRole?: AppRole;
   createdAt: string;
   updatedAt: string;
 }
@@ -263,6 +267,33 @@ export interface DispatcherInstancesResponse {
   unclaimedApps: UnclaimedApp[];
 }
 
+// Member
+export interface Member {
+  id: string;
+  applicationId: string;
+  userId: string;
+  email: string;
+  name: string;
+  role: AppRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Invite
+export interface Invite {
+  id: string;
+  applicationId: string;
+  email: string;
+  role: AppRole;
+  status: InviteStatus;
+  invitedBy: string;
+  token: string;
+  expiresAt: string;
+  createdAt: string;
+  applicationName?: string;
+  senderName?: string;
+}
+
 // API Error
 export interface ApiError {
   statusCode: number;
@@ -324,6 +355,16 @@ export interface CreateSubscriptionDto {
 export interface UpdateSubscriptionDto {
   filterConditions?: FilterCondition[];
   status?: SubscriptionStatus;
+}
+
+// Member DTOs
+export interface CreateInviteDto {
+  email: string;
+  role?: AppRole;
+}
+
+export interface UpdateMemberRoleDto {
+  role: AppRole;
 }
 
 // Chain Admin DTOs

@@ -16,13 +16,19 @@ export class DashboardService {
   ) {}
 
   async getDashboardStats(userId: string): Promise<DashboardStatsResponseDto> {
+    const membershipFilter = { members: { some: { userId } } };
+
     const [applicationCount, programCount, webhookCount, subscriptionCount] =
       await Promise.all([
-        this.prisma.application.count({ where: { userId } }),
-        this.prisma.program.count({ where: { application: { userId } } }),
-        this.prisma.webhook.count({ where: { application: { userId } } }),
+        this.prisma.application.count({ where: membershipFilter }),
+        this.prisma.program.count({
+          where: { application: membershipFilter },
+        }),
+        this.prisma.webhook.count({
+          where: { application: membershipFilter },
+        }),
         this.prisma.eventSubscription.count({
-          where: { webhook: { application: { userId } } },
+          where: { webhook: { application: membershipFilter } },
         }),
       ]);
 
