@@ -8,7 +8,12 @@ import { QueuePublisherService } from './queue-publisher.service';
 
 const logger = createLogger('BlockPoller');
 
-const BATCH_SIZE = 100n;
+/**
+ * Max block range per eth_getLogs call.
+ * Most RPC providers support 2000+ block ranges.
+ * Tune down if your RPC provider returns "query returned more than X results" errors.
+ */
+const BATCH_SIZE = 500n;
 
 export class BlockPollerService {
   private provider: JsonRpcProvider;
@@ -18,6 +23,8 @@ export class BlockPollerService {
   private isCatchingUp = false;
   private pollInterval: NodeJS.Timeout | null = null;
   private statusReportInterval: NodeJS.Timeout | null = null;
+  private lastPollStartTime: number = 0;
+  private lastPollError: string | null = null;
 
   constructor(
     private chain: Chain,
@@ -102,11 +109,14 @@ export class BlockPollerService {
       // Start polling (use short interval when catching up)
       this.schedulePoll();
 
-      // Start status reporting
-      this.statusReportInterval = setInterval(
-        () => this.reportStatus(this.isCatchingUp ? 'SYNCING' : 'SYNCED'),
-        this.statusReportIntervalMs,
-      );
+      // Start status reporting (handles both sync state and error reporting)
+      this.statusReportInterval = setInterval(() => {
+        if (this.lastPollError) {
+          this.reportStatus('ERROR', this.lastPollError);
+        } else {
+          this.reportStatus(this.isCatchingUp ? 'SYNCING' : 'SYNCED');
+        }
+      }, this.statusReportIntervalMs);
     } catch (error) {
       logger.error(`Failed to start block poller for chain ${this.chain.name}`, { error });
       await this.reportStatus('ERROR', error instanceof Error ? error.message : 'Unknown error');
@@ -316,8 +326,10 @@ export class BlockPollerService {
       this.pollInterval = null;
     }
 
-    // Use minimal delay when catching up, otherwise use block time based interval
-    const interval = this.isCatchingUp ? 100 : this.chain.blockTime * 1000;
+    // Compensate for processing time: subtract elapsed time from block interval
+    const blockIntervalMs = this.chain.blockTime * 1000;
+    const elapsed = this.lastPollStartTime > 0 ? Date.now() - this.lastPollStartTime : 0;
+    const interval = Math.max(0, blockIntervalMs - elapsed);
 
     this.pollInterval = setTimeout(() => {
       this.poll()
@@ -327,66 +339,84 @@ export class BlockPollerService {
   }
 
   /**
-   * Poll for new blocks and process events
+   * Poll for new blocks and process events.
+   * Uses a drain loop to process all pending blocks before returning.
+   *
+   * Optimization: getTargetBlockNumber() is called once before the loop and
+   * only re-fetched when we reach the known target. This avoids redundant
+   * RPC calls during batch catch-up (saves ~100ms per batch iteration).
    */
   private async poll(): Promise<void> {
     if (!this.isRunning || this.subscriptions.length === 0) return;
 
+    this.lastPollStartTime = Date.now();
+    this.lastPollError = null;
+    let loggedCatchingUp = false;
+
     try {
-      // Get target block number (finalized with fallback to latest)
-      const latestBlockBigInt = await this.getTargetBlockNumber();
+      // Fetch target block once before the drain loop
+      let latestBlockBigInt = await this.getTargetBlockNumber();
 
-      if (latestBlockBigInt <= this.lastProcessedBlock) {
-        // No new blocks, switch to normal interval if we were catching up
-        if (this.isCatchingUp) {
-          this.isCatchingUp = false;
-          logger.info(`Chain ${this.chain.name} is now synced at block ${this.lastProcessedBlock}`);
-          await this.reportStatus('SYNCED');
+      // Drain loop: process all pending blocks before returning
+      while (this.isRunning) {
+        if (latestBlockBigInt <= this.lastProcessedBlock) {
+          // No new blocks, we're synced
+          if (this.isCatchingUp) {
+            this.isCatchingUp = false;
+            logger.info(`Chain ${this.chain.name} is now synced at block ${this.lastProcessedBlock}`);
+          }
+          break;
         }
-        return;
-      }
 
-      const fromBlock = this.lastProcessedBlock + 1n;
-      const gap = latestBlockBigInt - this.lastProcessedBlock;
+        const fromBlock = this.lastProcessedBlock + 1n;
+        const gap = latestBlockBigInt - this.lastProcessedBlock;
 
-      // Limit batch size when catching up
-      let toBlock: bigint;
-      if (gap > BATCH_SIZE) {
-        toBlock = fromBlock + BATCH_SIZE - 1n;
-        this.isCatchingUp = true;
-        logger.info(
-          `Batch processing blocks ${fromBlock} to ${toBlock} on chain ${this.chain.name} (${gap} blocks behind)`,
-        );
-      } else {
-        toBlock = latestBlockBigInt;
-        if (this.isCatchingUp) {
-          this.isCatchingUp = false;
-          logger.info(`Chain ${this.chain.name} caught up, switching to normal polling interval`);
+        // Batch sizing: process up to BATCH_SIZE blocks per getLogs call.
+        // When gap <= BATCH_SIZE, process ALL pending blocks in one call.
+        let toBlock: bigint;
+        if (gap > BATCH_SIZE) {
+          toBlock = fromBlock + BATCH_SIZE - 1n;
+          if (!this.isCatchingUp) {
+            this.isCatchingUp = true;
+          }
+          if (!loggedCatchingUp) {
+            logger.info(
+              `Catching up on chain ${this.chain.name}: ${gap} blocks behind, processing in batches of ${BATCH_SIZE}`,
+            );
+            loggedCatchingUp = true;
+          }
+        } else {
+          toBlock = latestBlockBigInt;
+          if (this.isCatchingUp) {
+            this.isCatchingUp = false;
+            logger.info(`Chain ${this.chain.name} caught up, switching to normal polling interval`);
+          }
+        }
+
+        logger.debug(`Processing blocks ${fromBlock} to ${toBlock} on chain ${this.chain.name}`);
+
+        // Get logs using optimized filter (wide range when catching up)
+        const logs = await this.getLogs(fromBlock, toBlock);
+
+        if (this.appProgressService) {
+          await this.processLogsWithProgress(logs, Number(toBlock), toBlock);
+        } else {
+          if (logs.length > 0) {
+            await this.processLogs(logs, Number(toBlock));
+          }
+        }
+
+        this.lastProcessedBlock = toBlock;
+
+        // Only re-fetch target when we've reached the known target.
+        // During batch catch-up this skips redundant getTargetBlockNumber() RPC calls.
+        if (toBlock >= latestBlockBigInt) {
+          latestBlockBigInt = await this.getTargetBlockNumber();
         }
       }
-
-      logger.debug(`Processing blocks ${fromBlock} to ${toBlock} on chain ${this.chain.name}`);
-
-      // Get logs using optimized filter
-      const logs = await this.getLogs(fromBlock, toBlock);
-
-      if (this.appProgressService) {
-        // Partitioning mode: publish events + progress updates atomically
-        await this.processLogsWithProgress(logs, Number(toBlock), toBlock);
-      } else {
-        // Legacy mode: publish events only
-        if (logs.length > 0) {
-          await this.processLogs(logs, Number(toBlock));
-        }
-      }
-
-      this.lastProcessedBlock = toBlock;
-
-      // Report status based on sync state
-      await this.reportStatus(this.isCatchingUp ? 'SYNCING' : 'SYNCED');
     } catch (error) {
       logger.error(`Error polling blocks on chain ${this.chain.name}`, { error });
-      await this.reportStatus('ERROR', error instanceof Error ? error.message : 'Unknown error');
+      this.lastPollError = error instanceof Error ? error.message : 'Unknown error';
     }
   }
 

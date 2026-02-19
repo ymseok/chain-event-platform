@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service';
 import { DashboardStatsResponseDto } from './dto/dashboard-stats.dto';
 import { DashboardRepository } from './dashboard.repository';
 import {
@@ -10,34 +9,10 @@ import {
 
 @Injectable()
 export class DashboardService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly dashboardRepository: DashboardRepository,
-  ) {}
+  constructor(private readonly dashboardRepository: DashboardRepository) {}
 
   async getDashboardStats(userId: string): Promise<DashboardStatsResponseDto> {
-    const membershipFilter = { members: { some: { userId } } };
-
-    const [applicationCount, programCount, webhookCount, subscriptionCount] =
-      await Promise.all([
-        this.prisma.application.count({ where: membershipFilter }),
-        this.prisma.program.count({
-          where: { application: membershipFilter },
-        }),
-        this.prisma.webhook.count({
-          where: { application: membershipFilter },
-        }),
-        this.prisma.eventSubscription.count({
-          where: { webhook: { application: membershipFilter } },
-        }),
-      ]);
-
-    return {
-      applications: applicationCount,
-      programs: programCount,
-      webhooks: webhookCount,
-      subscriptions: subscriptionCount,
-    };
+    return this.dashboardRepository.getDashboardStats(userId);
   }
 
   async getDailyEventStats(userId: string, days: number): Promise<DailyEventStatsResponseDto> {

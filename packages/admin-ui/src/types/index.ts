@@ -353,7 +353,7 @@ export interface CreateSubscriptionDto {
 }
 
 export interface UpdateSubscriptionDto {
-  filterConditions?: FilterCondition[];
+  filterConditions?: FilterCondition[] | null;
   status?: SubscriptionStatus;
 }
 

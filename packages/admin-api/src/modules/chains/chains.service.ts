@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { JsonRpcProvider } from 'ethers';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisPublisherService } from '../../redis';
 import {
@@ -50,36 +51,34 @@ export class ChainsService {
   }
 
   async create(dto: CreateChainDto): Promise<ChainAdminResponseDto> {
-    // Check for duplicate name
-    const existingByName = await this.prisma.chain.findFirst({
-      where: { name: dto.name },
-    });
-    if (existingByName) {
-      throw new ConflictException(`Chain with name "${dto.name}" already exists`);
+    try {
+      const chain = await this.prisma.chain.create({
+        data: {
+          name: dto.name,
+          chainId: dto.chainId,
+          rpcUrl: dto.rpcUrl,
+          blockTime: dto.blockTime ?? 12,
+          enabled: true,
+        },
+      });
+
+      // Publish config refresh signal
+      await this.redisPublisher.publishChainCreated();
+
+      return ChainAdminResponseDto.fromEntity(chain);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = (error.meta?.target as string[]) ?? [];
+        if (target.includes('name')) {
+          throw new ConflictException(`Chain with name "${dto.name}" already exists`);
+        }
+        if (target.includes('chain_id')) {
+          throw new ConflictException(`Chain with chainId ${dto.chainId} already exists`);
+        }
+        throw new ConflictException('Chain with duplicate unique field already exists');
+      }
+      throw error;
     }
-
-    // Check for duplicate chainId
-    const existingByChainId = await this.prisma.chain.findFirst({
-      where: { chainId: dto.chainId },
-    });
-    if (existingByChainId) {
-      throw new ConflictException(`Chain with chainId ${dto.chainId} already exists`);
-    }
-
-    const chain = await this.prisma.chain.create({
-      data: {
-        name: dto.name,
-        chainId: dto.chainId,
-        rpcUrl: dto.rpcUrl,
-        blockTime: dto.blockTime ?? 12,
-        enabled: true,
-      },
-    });
-
-    // Publish config refresh signal
-    await this.redisPublisher.publishChainCreated();
-
-    return ChainAdminResponseDto.fromEntity(chain);
   }
 
   async update(id: number, dto: UpdateChainDto): Promise<ChainAdminResponseDto> {
@@ -88,35 +87,29 @@ export class ChainsService {
       throw new NotFoundException(`Chain with ID ${id} not found`);
     }
 
-    // Check for duplicate name (excluding self)
-    if (dto.name && dto.name !== existing.name) {
-      const existingByName = await this.prisma.chain.findFirst({
-        where: { name: dto.name, id: { not: id } },
+    try {
+      const chain = await this.prisma.chain.update({
+        where: { id },
+        data: dto,
       });
-      if (existingByName) {
-        throw new ConflictException(`Chain with name "${dto.name}" already exists`);
+
+      // Publish config refresh signal
+      await this.redisPublisher.publishChainUpdated();
+
+      return ChainAdminResponseDto.fromEntity(chain);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = (error.meta?.target as string[]) ?? [];
+        if (target.includes('name')) {
+          throw new ConflictException(`Chain with name "${dto.name}" already exists`);
+        }
+        if (target.includes('chain_id')) {
+          throw new ConflictException(`Chain with chainId ${dto.chainId} already exists`);
+        }
+        throw new ConflictException('Chain with duplicate unique field already exists');
       }
+      throw error;
     }
-
-    // Check for duplicate chainId (excluding self)
-    if (dto.chainId && dto.chainId !== existing.chainId) {
-      const existingByChainId = await this.prisma.chain.findFirst({
-        where: { chainId: dto.chainId, id: { not: id } },
-      });
-      if (existingByChainId) {
-        throw new ConflictException(`Chain with chainId ${dto.chainId} already exists`);
-      }
-    }
-
-    const chain = await this.prisma.chain.update({
-      where: { id },
-      data: dto,
-    });
-
-    // Publish config refresh signal
-    await this.redisPublisher.publishChainUpdated();
-
-    return ChainAdminResponseDto.fromEntity(chain);
   }
 
   async remove(id: number): Promise<void> {

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { AppRole } from '@prisma/client';
-import { ApplicationsRepository } from './applications.repository';
+import { Application, AppRole } from '@prisma/client';
+import { ApplicationsRepository, ApplicationWithMembers } from './applications.repository';
 import { MembersService } from '../members/members.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
@@ -32,24 +32,20 @@ export class ApplicationsService {
     isRoot: boolean,
     pagination: PaginationQueryDto,
   ): Promise<PaginatedResponseDto<ApplicationResponseDto>> {
-    // Root users see ALL applications
+    // Root users see ALL applications; include members to extract role without N+1
     const [applications, total] = isRoot
-      ? await this.applicationsRepository.findAll(pagination.skip, pagination.take)
+      ? await this.applicationsRepository.findAll(pagination.skip, pagination.take, { userId })
       : await this.applicationsRepository.findAllByMembership(
           userId,
           pagination.skip,
           pagination.take,
         );
 
-    // Fetch roles for each application
-    const dtos = await Promise.all(
-      applications.map(async (app) => {
-        const role = isRoot
-          ? (await this.membersService.getMemberRole(userId, app.id)) ?? undefined
-          : ((await this.membersService.getMemberRole(userId, app.id)) as AppRole);
-        return ApplicationResponseDto.fromEntity(app, role);
-      }),
-    );
+    // Extract role from included members data (no extra DB queries)
+    const dtos = (applications as ApplicationWithMembers[]).map((app) => {
+      const role = app.members?.[0]?.role;
+      return ApplicationResponseDto.fromEntity(app, role ?? undefined);
+    });
 
     return PaginatedResponseDto.create(dtos, {
       page: pagination.page || 1,
@@ -63,13 +59,8 @@ export class ApplicationsService {
     id: string,
     isRoot: boolean,
   ): Promise<ApplicationResponseDto> {
-    const application = await this.applicationsRepository.findById(id);
-    if (!application) {
-      throw new EntityNotFoundException('Application', id);
-    }
-    await this.validateAccess(userId, id, AppRole.GUEST, isRoot);
-
-    const role = await this.membersService.getMemberRole(userId, id);
+    const application = await this.findByIdOrThrow(id);
+    const role = await this.validateAccess(userId, application, AppRole.GUEST, isRoot);
     return ApplicationResponseDto.fromEntity(application, role ?? undefined);
   }
 
@@ -79,39 +70,42 @@ export class ApplicationsService {
     updateDto: UpdateApplicationDto,
     isRoot: boolean,
   ): Promise<ApplicationResponseDto> {
-    const application = await this.applicationsRepository.findById(id);
-    if (!application) {
-      throw new EntityNotFoundException('Application', id);
-    }
-    await this.validateAccess(userId, id, AppRole.OWNER, isRoot);
+    await this.findByIdOrThrow(id);
+    const role = await this.validateAccess(userId, id, AppRole.OWNER, isRoot);
 
     const updated = await this.applicationsRepository.update(id, updateDto);
-    const role = await this.membersService.getMemberRole(userId, id);
     return ApplicationResponseDto.fromEntity(updated, role ?? undefined);
   }
 
   async remove(userId: string, id: string, isRoot: boolean): Promise<void> {
-    const application = await this.applicationsRepository.findById(id);
-    if (!application) {
-      throw new EntityNotFoundException('Application', id);
-    }
+    await this.findByIdOrThrow(id);
     await this.validateAccess(userId, id, AppRole.OWNER, isRoot);
 
     await this.applicationsRepository.delete(id);
   }
 
+  /**
+   * Validates user access to an application with minimum role check.
+   * Accepts either an applicationId (string) or a pre-fetched Application object
+   * to avoid redundant DB lookups. Returns the user's role (null for root users).
+   */
   async validateAccess(
     userId: string,
-    applicationId: string,
+    applicationOrId: string | Application,
     minimumRole: AppRole = AppRole.GUEST,
     isRoot: boolean = false,
-  ): Promise<void> {
+  ): Promise<AppRole | null> {
     // Root users bypass all application-level checks
-    if (isRoot) return;
+    if (isRoot) return null;
 
-    const application = await this.applicationsRepository.findById(applicationId);
-    if (!application) {
-      throw new EntityNotFoundException('Application', applicationId);
+    const applicationId =
+      typeof applicationOrId === 'string' ? applicationOrId : applicationOrId.id;
+
+    if (typeof applicationOrId === 'string') {
+      const application = await this.applicationsRepository.findById(applicationOrId);
+      if (!application) {
+        throw new EntityNotFoundException('Application', applicationOrId);
+      }
     }
 
     const role = await this.membersService.getMemberRole(userId, applicationId);
@@ -122,6 +116,16 @@ export class ApplicationsService {
     if (!this.membersService.hasMinimumRole(role, minimumRole)) {
       throw new ForbiddenException('You do not have the required role for this operation');
     }
+
+    return role;
+  }
+
+  private async findByIdOrThrow(id: string): Promise<Application> {
+    const application = await this.applicationsRepository.findById(id);
+    if (!application) {
+      throw new EntityNotFoundException('Application', id);
+    }
+    return application;
   }
 
   /** @deprecated Use validateAccess instead */

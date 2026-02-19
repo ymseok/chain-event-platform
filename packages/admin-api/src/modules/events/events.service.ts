@@ -4,10 +4,14 @@ import { EventResponseDto } from './dto/event-response.dto';
 import { ParsedEvent } from '../../common/utils/abi-parser.util';
 import { EntityNotFoundException } from '../../common/exceptions';
 import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
+import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly eventsRepository: EventsRepository) {}
+  constructor(
+    private readonly eventsRepository: EventsRepository,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async createMany(programId: string, events: ParsedEvent[]): Promise<void> {
     await this.eventsRepository.createMany(
@@ -63,13 +67,27 @@ export class EventsService {
     // Events to delete (existing signatures not in new)
     const eventsToDelete = existingEvents.filter((e) => !newSignatures.has(e.signature));
 
-    if (eventsToDelete.length > 0) {
-      await this.eventsRepository.deleteByIds(eventsToDelete.map((e) => e.id));
-    }
+    // Wrap delete + create in a transaction to ensure atomicity
+    await this.prisma.$transaction(async (tx) => {
+      if (eventsToDelete.length > 0) {
+        await this.eventsRepository.deleteByIds(
+          eventsToDelete.map((e) => e.id),
+          tx,
+        );
+      }
 
-    if (eventsToAdd.length > 0) {
-      await this.createMany(programId, eventsToAdd);
-    }
+      if (eventsToAdd.length > 0) {
+        await this.eventsRepository.createMany(
+          eventsToAdd.map((e) => ({
+            programId,
+            name: e.name,
+            signature: e.signature,
+            parameters: e.parameters,
+          })),
+          tx,
+        );
+      }
+    });
 
     return {
       added: eventsToAdd.length,

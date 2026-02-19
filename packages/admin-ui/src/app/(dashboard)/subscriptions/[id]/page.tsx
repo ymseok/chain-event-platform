@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { StatusBadge, CodeBlock } from '@/components/common';
+import { StatusBadge, CodeBlock, FilterConditionBuilder } from '@/components/common';
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { useSubscription, useUpdateSubscription } from '@/lib/hooks';
 import { formatDate } from '@/lib/utils';
-import type { SubscriptionStatus } from '@/types';
+import type { FilterCondition, SubscriptionStatus } from '@/types';
 
 export default function SubscriptionDetailPage() {
   const params = useParams();
@@ -26,6 +27,15 @@ export default function SubscriptionDetailPage() {
 
   const { data: subscription, isLoading } = useSubscription(subscriptionId);
   const updateMutation = useUpdateSubscription();
+
+  const [isEditingFilters, setIsEditingFilters] = useState(false);
+  const [editConditions, setEditConditions] = useState<FilterCondition[]>([]);
+
+  useEffect(() => {
+    if (subscription) {
+      setEditConditions(subscription.filterConditions ?? []);
+    }
+  }, [subscription]);
 
   const handleStatusChange = async (status: SubscriptionStatus) => {
     try {
@@ -37,6 +47,26 @@ export default function SubscriptionDetailPage() {
     } catch (error) {
       toast.error('Failed to update subscription');
     }
+  };
+
+  const handleSaveFilters = async () => {
+    try {
+      await updateMutation.mutateAsync({
+        id: subscriptionId,
+        data: {
+          filterConditions: editConditions.length > 0 ? editConditions : null,
+        },
+      });
+      toast.success('Filter conditions updated');
+      setIsEditingFilters(false);
+    } catch (error) {
+      toast.error('Failed to update filter conditions');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditConditions(subscription?.filterConditions ?? []);
+    setIsEditingFilters(false);
   };
 
   if (isLoading) {
@@ -145,11 +175,48 @@ export default function SubscriptionDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Filter Conditions</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Filter Conditions</CardTitle>
+            {!isEditingFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditingFilters(true)}
+              >
+                Edit Filters
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          {subscription.filterConditions &&
-          subscription.filterConditions.length > 0 ? (
+          {isEditingFilters ? (
+            <div className="space-y-4">
+              <FilterConditionBuilder
+                conditions={editConditions}
+                onChange={setEditConditions}
+                parameters={subscription.event?.parameters}
+                disabled={updateMutation.isPending}
+              />
+              <div className="flex gap-2 pt-2">
+                <Button
+                  size="sm"
+                  onClick={handleSaveFilters}
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? 'Saving...' : 'Save'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  disabled={updateMutation.isPending}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : subscription.filterConditions &&
+            subscription.filterConditions.length > 0 ? (
             <CodeBlock
               code={JSON.stringify(subscription.filterConditions, null, 2)}
             />

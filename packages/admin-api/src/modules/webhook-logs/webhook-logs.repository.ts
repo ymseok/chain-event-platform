@@ -92,48 +92,36 @@ export class WebhookLogsRepository {
   }
 
   async getDailyStatsByWebhookId(webhookId: string, days: number): Promise<WebhookDailyStats[]> {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    startDate.setHours(0, 0, 0, 0);
-
     const results = await this.prisma.$queryRaw<DailyStatsRaw[]>`
       SELECT
-        DATE_TRUNC('day', created_at) as date,
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE status = 'SUCCESS') as success,
-        COUNT(*) FILTER (WHERE status = 'FAILED') as failed
-      FROM webhook_logs
-      WHERE webhook_id = ${webhookId}::uuid
-        AND created_at >= ${startDate}
-      GROUP BY DATE_TRUNC('day', created_at)
-      ORDER BY date ASC
+        d.date,
+        COALESCE(s.total, 0) AS total,
+        COALESCE(s.success, 0) AS success,
+        COALESCE(s.failed, 0) AS failed
+      FROM generate_series(
+        CURRENT_DATE - ${days}::int,
+        CURRENT_DATE,
+        '1 day'::interval
+      ) AS d(date)
+      LEFT JOIN (
+        SELECT
+          DATE_TRUNC('day', created_at) AS date,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE status = 'SUCCESS') AS success,
+          COUNT(*) FILTER (WHERE status = 'FAILED') AS failed
+        FROM webhook_logs
+        WHERE webhook_id = ${webhookId}::uuid
+          AND created_at >= CURRENT_DATE - ${days}::int
+        GROUP BY DATE_TRUNC('day', created_at)
+      ) s ON s.date = d.date
+      ORDER BY d.date ASC
     `;
 
-    // Fill in missing days with zeros
-    const statsMap = new Map<string, WebhookDailyStats>();
-
-    for (let i = 0; i <= days; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - (days - i));
-      const dateStr = date.toISOString().split('T')[0];
-      statsMap.set(dateStr, {
-        date: dateStr,
-        total: 0,
-        success: 0,
-        failed: 0,
-      });
-    }
-
-    for (const row of results) {
-      const dateStr = row.date.toISOString().split('T')[0];
-      statsMap.set(dateStr, {
-        date: dateStr,
-        total: Number(row.total),
-        success: Number(row.success),
-        failed: Number(row.failed),
-      });
-    }
-
-    return Array.from(statsMap.values());
+    return results.map((row) => ({
+      date: row.date.toISOString().split('T')[0],
+      total: Number(row.total),
+      success: Number(row.success),
+      failed: Number(row.failed),
+    }));
   }
 }

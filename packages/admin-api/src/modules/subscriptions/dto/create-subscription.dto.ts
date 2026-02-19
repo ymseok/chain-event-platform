@@ -1,5 +1,30 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsUUID, IsOptional, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsUUID,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsEnum,
+  IsIn,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class FilterConditionDto {
+  @ApiProperty({ example: 'from' })
+  @IsString()
+  @IsNotEmpty()
+  field!: string;
+
+  @ApiProperty({ example: 'eq', enum: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'] })
+  @IsIn(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains'])
+  operator!: string;
+
+  @ApiProperty({ example: '0x...' })
+  @IsNotEmpty()
+  value!: string | number | boolean;
+}
 
 export class CreateSubscriptionDto {
   @ApiProperty({ example: 'uuid-of-event' })
@@ -12,8 +37,10 @@ export class CreateSubscriptionDto {
   @IsNotEmpty()
   webhookId!: string;
 
-  @ApiPropertyOptional({ example: { from: '0x...', amount: { gt: 1000 } } })
-  @IsObject()
+  @ApiPropertyOptional({ type: [FilterConditionDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FilterConditionDto)
   @IsOptional()
-  filterConditions?: Record<string, unknown>;
+  filterConditions?: FilterConditionDto[];
 }

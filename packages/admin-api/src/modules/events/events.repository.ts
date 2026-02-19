@@ -1,13 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { Event, Prisma } from '@prisma/client';
+import { Event, Prisma, PrismaClient } from '@prisma/client';
+
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
 
 @Injectable()
 export class EventsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createMany(data: Prisma.EventCreateManyInput[]): Promise<void> {
-    await this.prisma.event.createMany({ data });
+  async createMany(
+    data: Prisma.EventCreateManyInput[],
+    tx?: TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.event.createMany({ data });
   }
 
   async findById(id: string): Promise<Event | null> {
@@ -38,8 +47,9 @@ export class EventsRepository {
     return [events, total];
   }
 
-  async deleteByIds(ids: string[]): Promise<void> {
-    await this.prisma.event.deleteMany({
+  async deleteByIds(ids: string[], tx?: TransactionClient): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.event.deleteMany({
       where: { id: { in: ids } },
     });
   }

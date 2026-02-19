@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -23,7 +24,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { FilterConditionBuilder } from '@/components/common';
 import { useCreateSubscription, usePrograms, useEvents, useWebhooks } from '@/lib/hooks';
+import type { FilterCondition } from '@/types';
 
 const createSubscriptionSchema = z.object({
   programId: z.string().min(1, 'Program is required'),
@@ -45,6 +48,8 @@ export function CreateSubscriptionDialog({
   onOpenChange,
 }: CreateSubscriptionDialogProps) {
   const [selectedProgramId, setSelectedProgramId] = useState<string>('');
+  const [filterConditions, setFilterConditions] = useState<FilterCondition[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: programs } = usePrograms(appId, 1, 100);
   const { data: events } = useEvents(selectedProgramId, 1, 100);
@@ -63,21 +68,42 @@ export function CreateSubscriptionDialog({
   });
 
   const watchedProgramId = watch('programId');
+  const watchedEventIds = watch('eventIds') || [];
 
   useEffect(() => {
     if (watchedProgramId) {
       setSelectedProgramId(watchedProgramId);
       setValue('eventIds', []);
+      setFilterConditions([]);
+      setShowFilters(false);
     }
   }, [watchedProgramId, setValue]);
 
+  // Reset filters when event selection changes away from single
+  useEffect(() => {
+    if (watchedEventIds.length !== 1) {
+      setFilterConditions([]);
+      setShowFilters(false);
+    }
+  }, [watchedEventIds.length]);
+
+  const selectedEvent =
+    watchedEventIds.length === 1
+      ? events?.data?.find((e) => e.id === watchedEventIds[0])
+      : undefined;
+
   const onSubmit = async (data: CreateSubscriptionForm) => {
     try {
+      const hasFilters = filterConditions.length > 0 && data.eventIds.length === 1;
+
       const results = await Promise.allSettled(
         data.eventIds.map((eventId) =>
           createMutation.mutateAsync({
             eventId,
             webhookId: data.webhookId,
+            ...(hasFilters && eventId === data.eventIds[0]
+              ? { filterConditions }
+              : {}),
           })
         )
       );
@@ -95,6 +121,8 @@ export function CreateSubscriptionDialog({
 
       reset();
       setSelectedProgramId('');
+      setFilterConditions([]);
+      setShowFilters(false);
       onOpenChange(false);
     } catch (error) {
       toast.error('Failed to create subscriptions');
@@ -113,6 +141,8 @@ export function CreateSubscriptionDialog({
   const handleClose = () => {
     reset();
     setSelectedProgramId('');
+    setFilterConditions([]);
+    setShowFilters(false);
     onOpenChange(false);
   };
 
@@ -220,6 +250,32 @@ export function CreateSubscriptionDialog({
                 </p>
               )}
             </div>
+
+            {watchedEventIds.length === 1 && selectedEvent && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-sm font-medium hover:text-foreground text-muted-foreground transition-colors"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  {showFilters ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  Filter Conditions (optional)
+                </button>
+                {showFilters && (
+                  <div className="rounded-md border p-3">
+                    <FilterConditionBuilder
+                      conditions={filterConditions}
+                      onChange={setFilterConditions}
+                      parameters={selectedEvent.parameters}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>

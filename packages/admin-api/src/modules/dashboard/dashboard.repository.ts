@@ -23,59 +23,89 @@ interface CumulativeStatsRaw {
   avg_response_time_ms: number | null;
 }
 
+interface DashboardStatsRaw {
+  applications: bigint;
+  programs: bigint;
+  webhooks: bigint;
+  subscriptions: bigint;
+}
+
+export interface DashboardStats {
+  applications: number;
+  programs: number;
+  webhooks: number;
+  subscriptions: number;
+}
+
 @Injectable()
 export class DashboardRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDailyEventStats(userId: string, days: number): Promise<DailyEventStatsDto[]> {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    startDate.setHours(0, 0, 0, 0);
-
-    const results = await this.prisma.$queryRaw<DailyEventStatsRaw[]>`
+  async getDashboardStats(userId: string): Promise<DashboardStats> {
+    const results = await this.prisma.$queryRaw<DashboardStatsRaw[]>`
       SELECT
-        DATE_TRUNC('day', wl.created_at) as date,
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE wl.status = 'SUCCESS') as success,
-        COUNT(*) FILTER (WHERE wl.status = 'FAILED') as failed
-      FROM webhook_logs wl
-      INNER JOIN webhooks w ON w.id = wl.webhook_id
-      INNER JOIN applications a ON a.id = w.application_id
-      INNER JOIN application_members am ON am.application_id = a.id
-      WHERE am.user_id = ${userId}::uuid
-        AND wl.created_at >= ${startDate}
-      GROUP BY DATE_TRUNC('day', wl.created_at)
-      ORDER BY date ASC
+        (SELECT COUNT(DISTINCT a.id) FROM applications a
+         INNER JOIN application_members am ON am.application_id = a.id
+         WHERE am.user_id = ${userId}::uuid) AS applications,
+        (SELECT COUNT(DISTINCT p.id) FROM programs p
+         INNER JOIN applications a ON a.id = p.application_id
+         INNER JOIN application_members am ON am.application_id = a.id
+         WHERE am.user_id = ${userId}::uuid) AS programs,
+        (SELECT COUNT(DISTINCT w.id) FROM webhooks w
+         INNER JOIN applications a ON a.id = w.application_id
+         INNER JOIN application_members am ON am.application_id = a.id
+         WHERE am.user_id = ${userId}::uuid) AS webhooks,
+        (SELECT COUNT(DISTINCT es.id) FROM event_subscriptions es
+         INNER JOIN webhooks w ON w.id = es.webhook_id
+         INNER JOIN applications a ON a.id = w.application_id
+         INNER JOIN application_members am ON am.application_id = a.id
+         WHERE am.user_id = ${userId}::uuid) AS subscriptions
     `;
 
-    // Fill in missing days with zeros
-    const statsMap = new Map<string, DailyEventStatsDto>();
+    const row = results[0];
+    return {
+      applications: Number(row?.applications || 0),
+      programs: Number(row?.programs || 0),
+      webhooks: Number(row?.webhooks || 0),
+      subscriptions: Number(row?.subscriptions || 0),
+    };
+  }
 
-    // Initialize all days with zeros
-    for (let i = 0; i <= days; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - (days - i));
-      const dateStr = date.toISOString().split('T')[0];
-      statsMap.set(dateStr, {
-        date: dateStr,
-        total: 0,
-        success: 0,
-        failed: 0,
-      });
-    }
+  async getDailyEventStats(userId: string, days: number): Promise<DailyEventStatsDto[]> {
+    const results = await this.prisma.$queryRaw<DailyEventStatsRaw[]>`
+      SELECT
+        d.date,
+        COALESCE(s.total, 0) AS total,
+        COALESCE(s.success, 0) AS success,
+        COALESCE(s.failed, 0) AS failed
+      FROM generate_series(
+        CURRENT_DATE - ${days}::int,
+        CURRENT_DATE,
+        '1 day'::interval
+      ) AS d(date)
+      LEFT JOIN (
+        SELECT
+          DATE_TRUNC('day', wl.created_at) AS date,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE wl.status = 'SUCCESS') AS success,
+          COUNT(*) FILTER (WHERE wl.status = 'FAILED') AS failed
+        FROM webhook_logs wl
+        INNER JOIN webhooks w ON w.id = wl.webhook_id
+        INNER JOIN applications a ON a.id = w.application_id
+        INNER JOIN application_members am ON am.application_id = a.id
+        WHERE am.user_id = ${userId}::uuid
+          AND wl.created_at >= CURRENT_DATE - ${days}::int
+        GROUP BY DATE_TRUNC('day', wl.created_at)
+      ) s ON s.date = d.date
+      ORDER BY d.date ASC
+    `;
 
-    // Fill in actual data
-    for (const row of results) {
-      const dateStr = row.date.toISOString().split('T')[0];
-      statsMap.set(dateStr, {
-        date: dateStr,
-        total: Number(row.total),
-        success: Number(row.success),
-        failed: Number(row.failed),
-      });
-    }
-
-    return Array.from(statsMap.values());
+    return results.map((row) => ({
+      date: row.date.toISOString().split('T')[0],
+      total: Number(row.total),
+      success: Number(row.success),
+      failed: Number(row.failed),
+    }));
   }
 
   async getTopApplications(userId: string, days: number, limit: number): Promise<TopApplicationDto[]> {

@@ -30,6 +30,7 @@ export class SubscriptionResponseDto {
     id: string;
     name: string;
     signature: string;
+    parameters: string;
     program?: { id: string; name: string; contractAddress: string };
   };
 
@@ -52,6 +53,7 @@ export class SubscriptionResponseDto {
             id: entity.event.id,
             name: entity.event.name,
             signature: entity.event.signature,
+            parameters: entity.event.parameters,
             program: entity.event.program
               ? {
                   id: entity.event.program.id,

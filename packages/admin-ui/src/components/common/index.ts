@@ -2,6 +2,7 @@ export * from './code-block';
 export * from './confirm-dialog';
 export * from './data-table';
 export * from './empty-state';
+export * from './filter-condition-builder';
 export * from './loading-spinner';
 export * from './page-header';
 export * from './stats-card';

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AppRole } from '@prisma/client';
+import { AppRole, Prisma } from '@prisma/client';
 import { SubscriptionsRepository } from './subscriptions.repository';
 import { ApplicationsService } from '../applications/applications.service';
 import { RedisPublisherService } from '../../redis';
@@ -80,8 +80,8 @@ export class SubscriptionsService {
     }
 
     const updated = await this.subscriptionsRepository.update(id, {
-      filterConditions: updateDto.filterConditions
-        ? (updateDto.filterConditions as object)
+      filterConditions: updateDto.filterConditions !== undefined
+        ? (updateDto.filterConditions as object) ?? Prisma.JsonNull
         : undefined,
       status: updateDto.status as 'ACTIVE' | 'PAUSED' | undefined,
     });

@@ -286,6 +286,7 @@ model WebhookLog {
   eventSubscription EventSubscription @relation(fields: [eventSubscriptionId], references: [id], onDelete: Cascade)
 
   @@index([webhookId])
+  @@index([webhookId, createdAt])
   @@index([eventSubscriptionId])
   @@index([createdAt])
   @@index([status])

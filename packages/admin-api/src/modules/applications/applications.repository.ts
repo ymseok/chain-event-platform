@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { Application, Prisma } from '@prisma/client';
+import { Application, ApplicationMember, Prisma } from '@prisma/client';
+
+export type ApplicationWithMembers = Application & {
+  members: ApplicationMember[];
+};
 
 @Injectable()
 export class ApplicationsRepository {
@@ -35,7 +39,7 @@ export class ApplicationsRepository {
     userId: string,
     skip: number,
     take: number,
-  ): Promise<[Application[], number]> {
+  ): Promise<[ApplicationWithMembers[], number]> {
     const where: Prisma.ApplicationWhereInput = {
       members: { some: { userId } },
     };
@@ -45,18 +49,27 @@ export class ApplicationsRepository {
         skip,
         take,
         orderBy: { createdAt: 'desc' },
+        include: { members: { where: { userId } } },
       }),
       this.prisma.application.count({ where }),
     ]);
     return [applications, total];
   }
 
-  async findAll(skip: number, take: number): Promise<[Application[], number]> {
+  async findAll(
+    skip: number,
+    take: number,
+    includeMembers?: { userId: string },
+  ): Promise<[ApplicationWithMembers[] | Application[], number]> {
+    const include = includeMembers
+      ? { members: { where: { userId: includeMembers.userId } } }
+      : undefined;
     const [applications, total] = await Promise.all([
       this.prisma.application.findMany({
         skip,
         take,
         orderBy: { createdAt: 'desc' },
+        include,
       }),
       this.prisma.application.count(),
     ]);
