@@ -5,8 +5,9 @@ import {
   createProgram,
   updateProgram,
   deleteProgram,
+  verifyContract,
 } from '@/lib/api/programs';
-import type { CreateProgramDto, UpdateProgramDto } from '@/types';
+import type { CreateProgramDto, UpdateProgramDto, VerifyContractDto } from '@/types';
 
 export const programKeys = {
   all: ['programs'] as const,
@@ -65,5 +66,11 @@ export function useDeleteProgram() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: programKeys.lists() });
     },
+  });
+}
+
+export function useVerifyContract() {
+  return useMutation({
+    mutationFn: (data: VerifyContractDto) => verifyContract(data),
   });
 }

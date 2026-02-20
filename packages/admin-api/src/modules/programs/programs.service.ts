@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AppRole, Prisma } from '@prisma/client';
-import { InterfaceAbi } from 'ethers';
+import { InterfaceAbi, JsonRpcProvider } from 'ethers';
 import { ProgramsRepository } from './programs.repository';
 import { ApplicationsService } from '../applications/applications.service';
 import { ChainsService } from '../chains/chains.service';
@@ -8,6 +8,11 @@ import { EventsService } from '../events/events.service';
 import { RedisPublisherService } from '../../redis';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { UpdateProgramDto } from './dto/update-program.dto';
+import {
+  VerifyContractDto,
+  ContractVerificationResultDto,
+  ContractVerificationStatus,
+} from './dto/verify-contract.dto';
 import { ProgramResponseDto, ProgramDetailResponseDto } from './dto/program-response.dto';
 import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 import { AbiParserUtil } from '../../common/utils';
@@ -187,5 +192,93 @@ export class ProgramsService {
     await this.redisPublisher.publishProgramUpdated();
 
     return ProgramResponseDto.fromEntity(updated);
+  }
+
+  async verifyContract(dto: VerifyContractDto): Promise<ContractVerificationResultDto> {
+    const chain = await this.chainsService.findById(dto.chainId);
+    if (!chain) {
+      throw new EntityNotFoundException('Chain', dto.chainId);
+    }
+
+    const result: ContractVerificationResultDto = {
+      status: ContractVerificationStatus.NO_CONTRACT,
+      contractExists: false,
+      bytecodeChecked: false,
+      bytecodeMatch: null,
+      onChainBytecodeSize: null,
+      message: '',
+      chainName: chain.name,
+      warnings: [],
+    };
+
+    if (!chain.enabled) {
+      result.status = ContractVerificationStatus.RPC_ERROR;
+      result.message = `Chain "${chain.name}" is currently disabled`;
+      return result;
+    }
+
+    let onChainBytecode: string;
+    try {
+      const provider = new JsonRpcProvider(chain.rpcUrl);
+      onChainBytecode = await provider.getCode(dto.contractAddress);
+    } catch (error) {
+      result.status = ContractVerificationStatus.RPC_ERROR;
+      result.message = `RPC connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      return result;
+    }
+
+    if (onChainBytecode === '0x') {
+      result.status = ContractVerificationStatus.NO_CONTRACT;
+      result.message = `No contract found at address ${dto.contractAddress}`;
+      return result;
+    }
+
+    result.contractExists = true;
+    // bytecode size in bytes = (hex length - 2 for '0x' prefix) / 2
+    result.onChainBytecodeSize = (onChainBytecode.length - 2) / 2;
+
+    // EIP-1167 minimal proxy detection
+    const EIP_1167_PREFIX = '0x363d3d373d3d3d363d73';
+    const EIP_1167_SUFFIX = '5af43d82803e903d91602b57fd5bf3';
+    if (
+      onChainBytecode.toLowerCase().startsWith(EIP_1167_PREFIX) &&
+      onChainBytecode.toLowerCase().endsWith(EIP_1167_SUFFIX)
+    ) {
+      result.warnings.push(
+        'Contract appears to be an EIP-1167 minimal proxy. ABI should match the implementation contract.',
+      );
+    }
+
+    if (!dto.deployedBytecode) {
+      result.status = ContractVerificationStatus.CONTRACT_EXISTS;
+      result.message = `Contract exists at ${dto.contractAddress} (${result.onChainBytecodeSize} bytes)`;
+      return result;
+    }
+
+    result.bytecodeChecked = true;
+    const onChainLower = onChainBytecode.toLowerCase();
+    const providedLower = dto.deployedBytecode.toLowerCase();
+
+    if (onChainLower === providedLower) {
+      result.status = ContractVerificationStatus.VERIFIED;
+      result.bytecodeMatch = true;
+      result.message = 'Bytecode matches exactly';
+      return result;
+    }
+
+    if (onChainLower.startsWith(providedLower) || providedLower.startsWith(onChainLower)) {
+      result.status = ContractVerificationStatus.VERIFIED;
+      result.bytecodeMatch = true;
+      result.message = 'Bytecode matches (partial match detected)';
+      result.warnings.push(
+        'Bytecode matched via prefix comparison. Difference may be due to constructor arguments or immutable variables.',
+      );
+      return result;
+    }
+
+    result.status = ContractVerificationStatus.BYTECODE_MISMATCH;
+    result.bytecodeMatch = false;
+    result.message = 'Bytecode does not match the on-chain contract';
+    return result;
   }
 }

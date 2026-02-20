@@ -19,13 +19,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useChains, useCreateProgram } from '@/lib/hooks';
+import { useChains, useCreateProgram, useVerifyContract } from '@/lib/hooks';
+import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import {
+  Upload,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Info,
+} from 'lucide-react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import type { ContractVerificationResult } from '@/types';
 
 const createProgramSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -37,6 +46,60 @@ const createProgramSchema = z.object({
 });
 
 type CreateProgramForm = z.infer<typeof createProgramSchema>;
+
+function VerificationResultBanner({
+  result,
+}: {
+  result: ContractVerificationResult;
+}) {
+  const isSuccess =
+    result.status === 'VERIFIED' || result.status === 'CONTRACT_EXISTS';
+  const isError =
+    result.status === 'NO_CONTRACT' || result.status === 'RPC_ERROR';
+  const isWarning = result.status === 'BYTECODE_MISMATCH';
+
+  const Icon = isSuccess ? CheckCircle2 : isError ? XCircle : AlertTriangle;
+
+  return (
+    <div
+      className={cn(
+        'rounded-md border px-3 py-2 text-sm',
+        isSuccess &&
+          'border-emerald-500/20 bg-emerald-500/10 text-emerald-500',
+        isError && 'border-destructive/20 bg-destructive/10 text-destructive',
+        isWarning && 'border-amber-500/20 bg-amber-500/10 text-amber-500'
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="space-y-1">
+          <p>{result.message}</p>
+          {result.chainName && (
+            <p className="text-xs opacity-80">Chain: {result.chainName}</p>
+          )}
+          {result.onChainBytecodeSize != null && (
+            <p className="text-xs opacity-80">
+              On-chain bytecode size: {result.onChainBytecodeSize} bytes
+            </p>
+          )}
+          {result.warnings.length > 0 && (
+            <div className="space-y-0.5">
+              {result.warnings.map((warning, i) => (
+                <p
+                  key={i}
+                  className="flex items-center gap-1 text-xs text-amber-500"
+                >
+                  <Info className="h-3 w-3 shrink-0" />
+                  {warning}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface CreateProgramDialogProps {
   appId: string;
@@ -51,6 +114,7 @@ export function CreateProgramDialog({
 }: CreateProgramDialogProps) {
   const { data: chains } = useChains();
   const createMutation = useCreateProgram(appId);
+  const verifyMutation = useVerifyContract();
 
   const {
     register,
@@ -64,23 +128,64 @@ export function CreateProgramDialog({
   });
 
   const [abiError, setAbiError] = useState<string | null>(null);
+  const [verificationResult, setVerificationResult] =
+    useState<ContractVerificationResult | null>(null);
+  const [deployedBytecode, setDeployedBytecode] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const extractAbiFromFile = (content: string): unknown[] | null => {
+  const watchedChainId = watch('chainId');
+  const watchedAddress = watch('contractAddress');
+
+  useEffect(() => {
+    setVerificationResult(null);
+  }, [watchedChainId, watchedAddress]);
+
+  const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(watchedAddress || '');
+  const canVerify = !!watchedChainId && isValidAddress;
+
+  const handleVerify = useCallback(async () => {
+    if (!canVerify) return;
+    try {
+      const result = await verifyMutation.mutateAsync({
+        chainId: parseInt(watchedChainId),
+        contractAddress: watchedAddress,
+        ...(deployedBytecode && { deployedBytecode }),
+      });
+      setVerificationResult(result);
+    } catch {
+      setVerificationResult({
+        status: 'RPC_ERROR',
+        contractExists: false,
+        bytecodeChecked: false,
+        bytecodeMatch: null,
+        onChainBytecodeSize: null,
+        message: 'Failed to verify contract. Please try again.',
+        chainName: '',
+        warnings: [],
+      });
+    }
+  }, [canVerify, watchedChainId, watchedAddress, deployedBytecode, verifyMutation]);
+
+  const extractAbiFromFile = (content: string): { abi: unknown[]; deployedBytecode: string | null } | null => {
     try {
       const parsed = JSON.parse(content);
+      let abi: unknown[] | null = null;
+      let bytecode: string | null = null;
 
-      // If it's already an array, use it directly
       if (Array.isArray(parsed)) {
-        return parsed;
+        abi = parsed;
+      } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.abi)) {
+        abi = parsed.abi;
+        // Extract deployedBytecode from Hardhat/Foundry artifact
+        const raw = parsed.deployedBytecode;
+        if (typeof raw === 'string' && /^0x[a-fA-F0-9]+$/.test(raw)) {
+          bytecode = raw;
+        } else if (raw && typeof raw === 'object' && typeof raw.object === 'string' && /^0x[a-fA-F0-9]+$/.test(raw.object)) {
+          bytecode = raw.object;
+        }
       }
 
-      // If it's an object with an 'abi' field that is an array, extract it
-      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.abi)) {
-        return parsed.abi;
-      }
-
-      return null;
+      return abi ? { abi, deployedBytecode: bytecode } : null;
     } catch {
       return null;
     }
@@ -93,12 +198,18 @@ export function CreateProgramDialog({
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      const extractedAbi = extractAbiFromFile(content);
+      const extracted = extractAbiFromFile(content);
 
-      if (extractedAbi) {
-        setValue('abi', JSON.stringify(extractedAbi, null, 2), { shouldValidate: true, shouldDirty: true });
+      if (extracted) {
+        setValue('abi', JSON.stringify(extracted.abi, null, 2), { shouldValidate: true, shouldDirty: true });
+        setDeployedBytecode(extracted.deployedBytecode);
+        setVerificationResult(null);
         setAbiError(null);
-        toast.success('ABI extracted successfully');
+        toast.success(
+          extracted.deployedBytecode
+            ? 'ABI and deployed bytecode extracted successfully'
+            : 'ABI extracted successfully'
+        );
       } else {
         setAbiError('Could not extract ABI. File must contain an ABI array or an object with an "abi" field.');
         toast.error('Failed to extract ABI from file');
@@ -157,6 +268,8 @@ export function CreateProgramDialog({
   const handleClose = () => {
     reset();
     setAbiError(null);
+    setVerificationResult(null);
+    setDeployedBytecode(null);
     onOpenChange(false);
   };
 
@@ -213,15 +326,41 @@ export function CreateProgramDialog({
 
             <div className="space-y-2">
               <Label htmlFor="contractAddress">Contract Address</Label>
-              <Input
-                id="contractAddress"
-                placeholder="0x..."
-                {...register('contractAddress')}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="contractAddress"
+                  placeholder="0x..."
+                  className="flex-1"
+                  {...register('contractAddress')}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-10 shrink-0"
+                  disabled={!canVerify || verifyMutation.isPending}
+                  onClick={handleVerify}
+                >
+                  {verifyMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Verify
+                    </>
+                  )}
+                </Button>
+              </div>
               {errors.contractAddress && (
                 <p className="text-sm text-destructive">
                   {errors.contractAddress.message}
                 </p>
+              )}
+              {verificationResult && (
+                <VerificationResultBanner result={verificationResult} />
               )}
             </div>
 
@@ -252,7 +391,11 @@ export function CreateProgramDialog({
                 placeholder="Paste contract ABI here or upload a JSON file..."
                 className="min-h-[200px] font-mono text-sm"
                 value={watch('abi') || ''}
-                onChange={(e) => setValue('abi', e.target.value, { shouldValidate: true })}
+                onChange={(e) => {
+                  setValue('abi', e.target.value, { shouldValidate: true });
+                  setDeployedBytecode(null);
+                  setVerificationResult(null);
+                }}
               />
               <p className="text-xs text-muted-foreground">
                 Supports both plain ABI array and full contract artifact (with abi, bytecode, etc.). The ABI will be automatically extracted.

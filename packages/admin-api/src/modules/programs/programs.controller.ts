@@ -8,11 +8,14 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ProgramsService } from './programs.service';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { UpdateProgramDto } from './dto/update-program.dto';
+import { VerifyContractDto, ContractVerificationResultDto } from './dto/verify-contract.dto';
 import { ProgramResponseDto, ProgramDetailResponseDto } from './dto/program-response.dto';
 import { CurrentUser } from '../../common/decorators';
 import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
@@ -22,6 +25,16 @@ import { PaginationQueryDto, PaginatedResponseDto } from '../../common/dto';
 @Controller()
 export class ProgramsController {
   constructor(private readonly programsService: ProgramsService) {}
+
+  @Post('programs/verify-contract')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify on-chain contract existence and bytecode' })
+  @ApiResponse({ status: 200, description: 'Contract verification result', type: ContractVerificationResultDto })
+  async verifyContract(
+    @Body() dto: VerifyContractDto,
+  ): Promise<ContractVerificationResultDto> {
+    return this.programsService.verifyContract(dto);
+  }
 
   @Post('applications/:appId/programs')
   @ApiOperation({ summary: 'Create a new program (smart contract)' })

@@ -375,6 +375,30 @@ export interface RpcCheckResult {
   message: string;
 }
 
+export type ContractVerificationStatus =
+  | 'VERIFIED'
+  | 'CONTRACT_EXISTS'
+  | 'NO_CONTRACT'
+  | 'BYTECODE_MISMATCH'
+  | 'RPC_ERROR';
+
+export interface VerifyContractDto {
+  chainId: number;
+  contractAddress: string;
+  deployedBytecode?: string;
+}
+
+export interface ContractVerificationResult {
+  status: ContractVerificationStatus;
+  contractExists: boolean;
+  bytecodeChecked: boolean;
+  bytecodeMatch: boolean | null;
+  onChainBytecodeSize: number | null;
+  message: string;
+  chainName: string;
+  warnings: string[];
+}
+
 // Dashboard Event Statistics
 export interface DailyEventStats {
   date: string;

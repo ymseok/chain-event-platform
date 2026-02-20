@@ -4,6 +4,8 @@ import type {
   PaginatedResponse,
   CreateProgramDto,
   UpdateProgramDto,
+  VerifyContractDto,
+  ContractVerificationResult,
 } from '@/types';
 
 export async function getPrograms(
@@ -46,4 +48,14 @@ export async function updateProgram(
 
 export async function deleteProgram(id: string): Promise<void> {
   await apiClient.delete(`/programs/${id}`);
+}
+
+export async function verifyContract(
+  data: VerifyContractDto
+): Promise<ContractVerificationResult> {
+  const response = await apiClient.post<ContractVerificationResult>(
+    '/programs/verify-contract',
+    data
+  );
+  return response.data;
 }
