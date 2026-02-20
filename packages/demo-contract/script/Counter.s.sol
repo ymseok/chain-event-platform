@@ -10,7 +10,15 @@ contract CounterScript is Script {
     function setUp() public {}
 
     function run() public {
-        vm.startBroadcast();
+       
+        // 환경변수에서 private key 로드
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+
+        console.log("Deployer address:", deployer);
+        console.log("Deployer balance:", deployer.balance);
+
+        vm.startBroadcast(deployerPrivateKey);
 
         counter = new Counter();
 
