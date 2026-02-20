@@ -12,9 +12,11 @@ Chain Event Platform acts as middleware that monitors blockchain networks and di
 
 - **Centralized Block Tracking**: Single engine monitors blockchain to prevent redundant node queries
 - **Event Subscription**: Services register specific smart contract events to monitor
+- **Subscription Filter Conditions**: Fine-grained filtering based on event parameters (e.g., specific sender/receiver addresses)
 - **Webhook Dispatch**: Automatic event delivery via registered webhooks with retry logic
 - **Multi-Chain Support**: Designed to support multiple EVM-compatible networks
-- **Horizontal Scaling**: Claim-based partitioning allows multiple ingestor/dispatcher instances
+- **Horizontal Scaling**: Claim-based partitioning allows multiple ingestor/dispatcher instances with subscription status control (ACTIVE/PAUSED)
+- **RBAC & Member Management**: Role-based access control (OWNER/MEMBER/GUEST) with an invitation system for collaborative application management
 - **Real-Time Dashboard**: Monitor applications, events, webhooks, and system health
 - **API Key Authentication**: Secure webhook delivery with hashed API keys
 
@@ -488,7 +490,6 @@ cd packages/demo-contract/ext_script
 | `REDIS_HOST` | Redis host | `localhost` |
 | `REDIS_PORT` | Redis port | `6379` |
 | `POLL_INTERVAL_MS` | Block polling interval | `1000` |
-| `STATUS_REPORT_INTERVAL_MS` | Status report interval | `30000` |
 | `LOG_LEVEL` | Logging level | `info` |
 
 ### Webhook Dispatcher
@@ -521,12 +522,12 @@ chain-event-platform/
 │   │   │   │   ├── applications/     # Application management
 │   │   │   │   ├── auth/             # JWT authentication & refresh tokens
 │   │   │   │   ├── chains/           # Blockchain chain management
-│   │   │   │   ├── chain-sync-status/# Chain synchronization tracking
 │   │   │   │   ├── dashboard/        # Dashboard statistics & analytics
 │   │   │   │   ├── dispatcher/       # Dispatcher instance management (partitioning)
 │   │   │   │   ├── events/           # Smart contract event definitions
 │   │   │   │   ├── health/           # Health check endpoint
 │   │   │   │   ├── ingestor/         # Ingestor instance management (partitioning)
+│   │   │   │   ├── members/          # Application member & invite management
 │   │   │   │   ├── programs/         # Smart contract program registry
 │   │   │   │   ├── statistics/       # Real-time statistics
 │   │   │   │   ├── subscriptions/    # Event subscriptions
@@ -549,6 +550,7 @@ chain-event-platform/
 │   │           │       ├── programs/       # Contract registration
 │   │           │       ├── webhooks/       # Webhook management
 │   │           │       ├── subscriptions/  # Event subscriptions
+│   │           │       ├── members/       # Member & invite management
 │   │           │       └── settings/       # API key management
 │   │           ├── webhooks/[id]/   # Webhook detail & logs
 │   │           ├── programs/[id]/   # Program detail
@@ -602,6 +604,9 @@ chain-event-platform/
 erDiagram
     User ||--o{ Application : owns
     User ||--o{ ApiKey : has
+    User ||--o{ ApplicationMember : belongs_to
+    Application ||--o{ ApplicationMember : has_members
+    Application ||--o{ ApplicationInvite : has_invites
     Application ||--o{ Program : contains
     Application ||--o{ Webhook : contains
     Application ||--o{ EventSubscription : contains
@@ -609,12 +614,12 @@ erDiagram
     Event ||--o{ EventSubscription : subscribes
     Webhook ||--o{ EventSubscription : delivers_to
     Webhook ||--o{ WebhookLog : logs
-    Chain ||--o{ ChainSyncStatus : tracks
 
     User {
         string id PK
         string email
         string password
+        boolean isRoot
         datetime createdAt
         datetime updatedAt
     }
@@ -623,6 +628,26 @@ erDiagram
         string name
         string description
         string userId FK
+    }
+    ApplicationMember {
+        string id PK
+        string applicationId FK
+        string userId FK
+        AppRole role
+        datetime createdAt
+        datetime updatedAt
+    }
+    ApplicationInvite {
+        string id PK
+        string applicationId FK
+        string email
+        AppRole role
+        InviteStatus status
+        string invitedBy
+        string token
+        datetime expiresAt
+        datetime createdAt
+        datetime updatedAt
     }
     Program {
         string id PK
@@ -647,7 +672,7 @@ erDiagram
     }
     EventSubscription {
         string id PK
-        boolean enabled
+        SubscriptionStatus status
         json filterConditions
         string eventId FK
         string webhookId FK
@@ -660,13 +685,6 @@ erDiagram
         string rpcUrl
         int blockTime
         boolean enabled
-    }
-    ChainSyncStatus {
-        string id PK
-        int latestBlock
-        string status
-        string error
-        int chainId FK
     }
     WebhookLog {
         string id PK
@@ -703,14 +721,27 @@ http://localhost:3001/api/docs
 | POST | `/api/v1/auth/refresh` | Refresh access token |
 | GET | `/api/v1/applications` | List user applications |
 | POST | `/api/v1/applications` | Create application |
+| GET | `/api/v1/applications/:appId/members` | List application members |
+| POST | `/api/v1/applications/:appId/members/invite` | Invite a user to the application |
+| PATCH | `/api/v1/applications/:appId/members/:memberId/role` | Change member role |
+| DELETE | `/api/v1/applications/:appId/members/:memberId` | Remove a member |
+| DELETE | `/api/v1/applications/:appId/members/me` | Leave the application |
+| GET | `/api/v1/applications/:appId/invites` | List pending invites |
+| DELETE | `/api/v1/applications/:appId/invites/:inviteId` | Cancel a pending invite |
+| GET | `/api/v1/invites/pending` | Get my pending invites |
+| POST | `/api/v1/invites/:token/accept` | Accept an invite |
+| POST | `/api/v1/invites/:token/decline` | Decline an invite |
 | GET | `/api/v1/programs` | List programs |
 | POST | `/api/v1/programs` | Register a smart contract program |
 | GET | `/api/v1/webhooks` | List webhooks |
 | POST | `/api/v1/webhooks` | Create webhook |
 | POST | `/api/v1/webhooks/:id/test` | Test webhook connectivity |
-| GET | `/api/v1/subscriptions` | List event subscriptions |
-| POST | `/api/v1/subscriptions` | Create subscription |
-| PATCH | `/api/v1/subscriptions/:id/toggle` | Toggle subscription status |
+| POST | `/api/v1/applications/:appId/subscriptions` | Create subscription |
+| GET | `/api/v1/applications/:appId/subscriptions` | List event subscriptions |
+| GET | `/api/v1/subscriptions/:id` | Get subscription details |
+| PATCH | `/api/v1/subscriptions/:id` | Update subscription |
+| DELETE | `/api/v1/subscriptions/:id` | Delete subscription |
+| PATCH | `/api/v1/subscriptions/:id/status` | Toggle subscription status (ACTIVE/PAUSED) |
 | GET | `/api/v1/chains` | List blockchain chains |
 | POST | `/api/v1/chains` | Add a new chain |
 | GET | `/api/v1/dashboard/stats` | Get dashboard statistics |
