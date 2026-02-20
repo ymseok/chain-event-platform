@@ -64,7 +64,12 @@ export function Sidebar() {
   const pathname = usePathname();
   const currentApp = useAppStore((state) => state.currentApp);
 
-  const isAppDetailPage = pathname.startsWith('/applications/') && currentApp;
+  const isAppDetailPage =
+    (pathname.startsWith('/applications/') ||
+      pathname.startsWith('/webhooks/') ||
+      pathname.startsWith('/programs/') ||
+      pathname.startsWith('/subscriptions/')) &&
+    currentApp;
 
   return (
     <div className="flex h-full w-72 flex-col border-r border-border/50 bg-card/50 backdrop-blur-xl">
@@ -139,7 +144,8 @@ export function Sidebar() {
               const isActive =
                 item.href === ''
                   ? pathname === fullHref
-                  : pathname.startsWith(fullHref);
+                  : pathname.startsWith(fullHref) ||
+                    pathname.startsWith(item.href + '/');
 
               return (
                 <Link

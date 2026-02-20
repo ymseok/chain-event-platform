@@ -1,0 +1,7 @@
+#!/bin/sh
+
+curl -s -X POST http://127.0.0.1:8545 \
+  -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+| jq -r '.result' \
+| xargs printf "%d\n"
