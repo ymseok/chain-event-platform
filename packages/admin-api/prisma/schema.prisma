@@ -27,13 +27,6 @@ enum WebhookLogStatus {
   FAILED
 }
 
-enum SyncStatus {
-  SYNCING
-  SYNCED
-  ERROR
-  STOPPED
-}
-
 enum AppRole {
   OWNER
   MEMBER
@@ -160,25 +153,9 @@ model Chain {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  programs   Program[]
-  syncStatus ChainSyncStatus?
+  programs Program[]
 
   @@map("chains")
-}
-
-model ChainSyncStatus {
-  id                Int        @id @default(autoincrement())
-  chainId           Int        @unique @map("chain_id")
-  latestBlockNumber BigInt     @map("latest_block_number")
-  syncStatus        SyncStatus @default(SYNCING) @map("sync_status")
-  lastSyncedAt      DateTime?  @map("last_synced_at")
-  lastError         String?    @map("last_error") @db.Text
-  createdAt         DateTime   @default(now()) @map("created_at")
-  updatedAt         DateTime   @updatedAt @map("updated_at")
-
-  chain Chain @relation(fields: [chainId], references: [id], onDelete: Cascade)
-
-  @@map("chain_sync_status")
 }
 
 model Program {

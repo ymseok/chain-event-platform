@@ -7,7 +7,6 @@ import { UsersModule } from './modules/users/users.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ChainsModule } from './modules/chains/chains.module';
-import { ChainSyncStatusModule } from './modules/chain-sync-status/chain-sync-status.module';
 import { IngestorModule } from './modules/ingestor/ingestor.module';
 import { DispatcherModule } from './modules/dispatcher/dispatcher.module';
 import { RedisModule } from './redis/redis.module';
@@ -46,7 +45,6 @@ import { validationSchema } from './common/config/validation.schema';
     ApplicationsModule,
     ApiKeysModule,
     ChainsModule,
-    ChainSyncStatusModule,
     ProgramsModule,
     EventsModule,
     WebhooksModule,

@@ -1,7 +1,6 @@
 export * from './use-applications';
 export * from './use-api-keys';
 export * from './use-chains';
-export * from './use-chain-sync-status';
 export * from './use-dashboard';
 export * from './use-programs';
 export * from './use-events';

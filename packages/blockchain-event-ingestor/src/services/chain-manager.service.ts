@@ -425,7 +425,6 @@ export class ChainManagerService {
       this.queuePublisher,
       this.adminApi,
       this.config.polling.intervalMs,
-      this.config.polling.statusReportIntervalMs,
       this.isPartitioningEnabled() ? this.appProgressService : undefined,
     );
 

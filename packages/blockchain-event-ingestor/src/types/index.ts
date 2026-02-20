@@ -29,28 +29,6 @@ export interface IngestorSubscriptionsResponse {
   subscriptions: Subscription[];
 }
 
-// Sync status types
-export type SyncStatus = 'SYNCING' | 'SYNCED' | 'ERROR' | 'STOPPED';
-
-export interface UpdateSyncStatusRequest {
-  latestBlockNumber: string;
-  syncStatus: SyncStatus;
-  lastError?: string;
-}
-
-export interface ChainSyncStatusResponse {
-  id: number;
-  chainId: number;
-  chainName: string;
-  networkChainId: number;
-  latestBlockNumber: string;
-  syncStatus: SyncStatus;
-  lastSyncedAt: string | null;
-  lastError: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // Redis message types
 export type ConfigRefreshType =
   | 'CHAIN_CREATED'

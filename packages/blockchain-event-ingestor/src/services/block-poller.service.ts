@@ -1,5 +1,5 @@
 import { InterfaceAbi, JsonRpcProvider, Log } from 'ethers';
-import { Chain, EventQueueMessage, Subscription, SyncStatus } from '../types';
+import { Chain, EventQueueMessage, Subscription } from '../types';
 import { EventParser } from '../utils/event-parser';
 import { AdminApiService } from './admin-api.service';
 import { AppProgressService } from './app-progress.service';
@@ -22,9 +22,7 @@ export class BlockPollerService {
   private isRunning = false;
   private isCatchingUp = false;
   private pollInterval: NodeJS.Timeout | null = null;
-  private statusReportInterval: NodeJS.Timeout | null = null;
   private lastPollStartTime: number = 0;
-  private lastPollError: string | null = null;
 
   constructor(
     private chain: Chain,
@@ -32,7 +30,6 @@ export class BlockPollerService {
     private queuePublisher: QueuePublisherService,
     private adminApi: AdminApiService,
     private pollIntervalMs: number,
-    private statusReportIntervalMs: number,
     private appProgressService?: AppProgressService,
   ) {
     this.provider = new JsonRpcProvider(chain.rpcUrl);
@@ -62,6 +59,8 @@ export class BlockPollerService {
       // Get current chain's target block number (finalized with fallback to latest)
       const latestBlockBigInt = await this.getTargetBlockNumber(true);
 
+      logger.info(`Current target block number on chain ${this.chain.name} is ${latestBlockBigInt}`);
+
       // Determine start block
       let startBlock: bigint | null = null;
 
@@ -71,20 +70,10 @@ export class BlockPollerService {
       }
 
       if (startBlock === null) {
-        // Fallback: Try to get last processed block from admin-api
-        const syncStatus = await this.adminApi.getSyncStatus(this.chain.id);
-
-        if (syncStatus && syncStatus.latestBlockNumber) {
-          startBlock = BigInt(syncStatus.latestBlockNumber);
-          logger.info(
-            `Resuming from block ${startBlock} on chain ${this.chain.name} (latest: ${latestBlockBigInt})`,
-          );
-        } else {
-          startBlock = latestBlockBigInt;
-          logger.info(
-            `No previous sync status found. Starting from latest block ${startBlock} on chain ${this.chain.name}`,
-          );
-        }
+        startBlock = latestBlockBigInt;
+        logger.info(
+          `No previous progress found. Starting from latest block ${startBlock} on chain ${this.chain.name}`,
+        );
       } else {
         logger.info(
           `Resuming from min app progress block ${startBlock} on chain ${this.chain.name} (latest: ${latestBlockBigInt})`,
@@ -103,23 +92,10 @@ export class BlockPollerService {
         );
       }
 
-      // Report initial status
-      await this.reportStatus('SYNCING');
-
       // Start polling (use short interval when catching up)
       this.schedulePoll();
-
-      // Start status reporting (handles both sync state and error reporting)
-      this.statusReportInterval = setInterval(() => {
-        if (this.lastPollError) {
-          this.reportStatus('ERROR', this.lastPollError);
-        } else {
-          this.reportStatus(this.isCatchingUp ? 'SYNCING' : 'SYNCED');
-        }
-      }, this.statusReportIntervalMs);
     } catch (error) {
       logger.error(`Failed to start block poller for chain ${this.chain.name}`, { error });
-      await this.reportStatus('ERROR', error instanceof Error ? error.message : 'Unknown error');
       this.isRunning = false;
       throw error;
     }
@@ -129,7 +105,6 @@ export class BlockPollerService {
    * Stop polling
    */
   async stop(): Promise<void> {
-    const wasRunning = this.isRunning;
     this.isRunning = false;
 
     if (this.pollInterval) {
@@ -137,17 +112,9 @@ export class BlockPollerService {
       this.pollInterval = null;
     }
 
-    if (this.statusReportInterval) {
-      clearInterval(this.statusReportInterval);
-      this.statusReportInterval = null;
-    }
-
     // Destroy the provider to stop internal network detection retries
     this.provider.destroy();
 
-    if (wasRunning) {
-      await this.reportStatus('STOPPED');
-    }
     logger.info(`Stopped block poller for chain ${this.chain.name}`);
   }
 
@@ -280,7 +247,7 @@ export class BlockPollerService {
   private async getTargetBlockNumber(logOnFallback = false): Promise<bigint> {
     const finalizedBlock = await this.provider.getBlock('finalized');
 
-    if (!finalizedBlock || finalizedBlock.number === 0) {
+    if (!finalizedBlock) {
       if (logOnFallback) {
         logger.warn(
           `Finalized block not available on chain ${this.chain.name}, falling back to latest block`,
@@ -342,20 +309,23 @@ export class BlockPollerService {
    * Poll for new blocks and process events.
    * Uses a drain loop to process all pending blocks before returning.
    *
-   * Optimization: getTargetBlockNumber() is called once before the loop and
-   * only re-fetched when we reach the known target. This avoids redundant
-   * RPC calls during batch catch-up (saves ~100ms per batch iteration).
+   * The target block is captured once at entry and never re-fetched within
+   * the loop. This guarantees the loop terminates when the initial target
+   * is reached, even on chains with very short block times. Any blocks
+   * produced during this poll cycle will be picked up by the next
+   * scheduled poll invocation.
    */
   private async poll(): Promise<void> {
     if (!this.isRunning || this.subscriptions.length === 0) return;
 
     this.lastPollStartTime = Date.now();
-    this.lastPollError = null;
     let loggedCatchingUp = false;
 
     try {
-      // Fetch target block once before the drain loop
-      let latestBlockBigInt = await this.getTargetBlockNumber();
+      // Fetch target block once before the drain loop (immutable ceiling for this cycle)
+      const latestBlockBigInt = await this.getTargetBlockNumber(true);
+
+      logger.debug(`Starting poll cycle on chain ${this.chain.name}. lastProcessedBlock: ${this.lastProcessedBlock}, targetBlock: ${latestBlockBigInt}`);
 
       // Drain loop: process all pending blocks before returning
       while (this.isRunning) {
@@ -407,16 +377,9 @@ export class BlockPollerService {
         }
 
         this.lastProcessedBlock = toBlock;
-
-        // Only re-fetch target when we've reached the known target.
-        // During batch catch-up this skips redundant getTargetBlockNumber() RPC calls.
-        if (toBlock >= latestBlockBigInt) {
-          latestBlockBigInt = await this.getTargetBlockNumber();
-        }
       }
     } catch (error) {
       logger.error(`Error polling blocks on chain ${this.chain.name}`, { error });
-      this.lastPollError = error instanceof Error ? error.message : 'Unknown error';
     }
   }
 
@@ -645,18 +608,4 @@ export class BlockPollerService {
     return true;
   }
 
-  /**
-   * Report sync status to admin-api
-   */
-  private async reportStatus(status: SyncStatus, error?: string): Promise<void> {
-    try {
-      await this.adminApi.updateSyncStatus(this.chain.id, {
-        latestBlockNumber: this.lastProcessedBlock.toString(),
-        syncStatus: status,
-        lastError: error,
-      });
-    } catch (err) {
-      logger.error(`Failed to report status for chain ${this.chain.name}`, { error: err });
-    }
-  }
 }

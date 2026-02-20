@@ -2,7 +2,6 @@
 export type Status = 'ACTIVE' | 'INACTIVE';
 export type SubscriptionStatus = 'ACTIVE' | 'PAUSED';
 export type WebhookLogStatus = 'PENDING' | 'SUCCESS' | 'FAILED';
-export type SyncStatus = 'SYNCING' | 'SYNCED' | 'ERROR' | 'STOPPED';
 export type AppRole = 'OWNER' | 'MEMBER' | 'GUEST';
 export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
 
@@ -51,20 +50,6 @@ export interface Chain {
   rpcUrl: string;
   blockTime: number;
   enabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Chain Sync Status
-export interface ChainSyncStatus {
-  id: number;
-  chainId: number;
-  chainName: string;
-  networkChainId: number;
-  latestBlockNumber: string;
-  syncStatus: SyncStatus;
-  lastSyncedAt: string | null;
-  lastError: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,10 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
 import { Config } from '../config';
 import {
-  ChainSyncStatusResponse,
   IngestorSubscriptionsResponse,
   Subscription,
-  UpdateSyncStatusRequest,
 } from '../types';
 import { createLogger } from './logger.service';
 
@@ -61,46 +59,4 @@ export class AdminApiService {
     }
   }
 
-  /**
-   * Get chain sync status
-   * Returns null if no sync status exists for the chain
-   */
-  async getSyncStatus(chainId: number): Promise<ChainSyncStatusResponse | null> {
-    try {
-      const response = await this.client.get<ChainSyncStatusResponse>(
-        `/chain-sync-status/${chainId}`,
-      );
-      logger.info(`Fetched sync status for chain ${chainId}`, {
-        latestBlockNumber: response.data.latestBlockNumber,
-      });
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        logger.info(`No sync status found for chain ${chainId}`);
-        return null;
-      }
-      logger.error(`Failed to fetch sync status for chain ${chainId}`, {
-        error,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Update chain sync status
-   */
-  async updateSyncStatus(
-    chainId: number,
-    status: UpdateSyncStatusRequest,
-  ): Promise<void> {
-    try {
-      await this.client.put(`/chain-sync-status/${chainId}`, status);
-      logger.debug(`Updated sync status for chain ${chainId}`, { status });
-    } catch (error) {
-      logger.error(`Failed to update sync status for chain ${chainId}`, {
-        error,
-      });
-      throw error;
-    }
-  }
 }
