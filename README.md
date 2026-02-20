@@ -256,10 +256,10 @@ Partitioning is configured via environment variables in each service:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PARTITIONING_ENABLED` | Enable/disable partitioning | `false` |
-| `PARTITIONING_LEASE_TTL_SEC` | Lease time-to-live in seconds | `30` |
-| `PARTITIONING_CLAIM_INTERVAL_MS` | How often to claim/renew leases | `10000` |
-| `PARTITIONING_INSTANCE_ID` | Unique instance identifier | auto-generated |
+| `PARTITIONING_ENABLED` | Enable/disable partitioning (ingestor only) | `true` |
+| `LEASE_TTL_SEC` | Lease time-to-live in seconds | `30` |
+| `CLAIM_INTERVAL_MS` | How often to claim/renew leases | `5000` |
+| `INSTANCE_ID` | Unique instance identifier | auto-generated |
 
 ## Local Development Testing Guide
 
