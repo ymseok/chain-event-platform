@@ -45,6 +45,32 @@ export class AppProgressService {
   }
 
   /**
+   * Batch-fetch progress for multiple apps in a single Redis pipeline round-trip.
+   */
+  async getProgressBatch(appIds: string[], chainId: number): Promise<Map<string, bigint | null>> {
+    const result = new Map<string, bigint | null>();
+    if (appIds.length === 0) return result;
+
+    const keys = appIds.map((id) => this.getProgressKey(id, chainId));
+    const pipeline = this.redis.pipeline();
+    for (const key of keys) {
+      pipeline.get(key);
+    }
+    const responses = await pipeline.exec();
+
+    for (let i = 0; i < appIds.length; i++) {
+      const [err, value] = responses![i];
+      if (err || value === null) {
+        result.set(appIds[i], null);
+      } else {
+        result.set(appIds[i], BigInt(value as string));
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Set the progress for an app on a chain (used for initial setup)
    */
   async setProgress(appId: string, chainId: number, blockNumber: bigint): Promise<void> {
