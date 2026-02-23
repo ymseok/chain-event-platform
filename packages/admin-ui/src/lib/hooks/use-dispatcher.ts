@@ -13,7 +13,8 @@ export function useDispatcherInstances() {
   return useQuery({
     queryKey: dispatcherKeys.instances(),
     queryFn: getDispatcherInstances,
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 

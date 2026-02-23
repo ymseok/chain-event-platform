@@ -70,7 +70,7 @@ export default function WebhookDetailPage() {
     if (autoRefresh) {
       intervalRef.current = setInterval(() => {
         queryClient.invalidateQueries({
-          queryKey: webhookLogKeys.lists(),
+          queryKey: webhookLogKeys.list(webhookId, page, 20, statusFilter === 'ALL' ? undefined : statusFilter),
         });
       }, 5000);
     } else {
@@ -85,7 +85,7 @@ export default function WebhookDetailPage() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [autoRefresh, queryClient]);
+  }, [autoRefresh, queryClient, webhookId, page, statusFilter]);
 
   const handleTest = async () => {
     try {

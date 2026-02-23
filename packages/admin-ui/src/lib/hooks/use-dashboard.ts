@@ -27,6 +27,7 @@ export function useDailyEventStats(days: number = 30) {
     queryKey: dashboardKeys.dailyEventStats(days),
     queryFn: () => getDailyEventStats(days),
     refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -35,6 +36,7 @@ export function useTopApplications(days: number = 7, limit: number = 5) {
     queryKey: dashboardKeys.topApplications(days, limit),
     queryFn: () => getTopApplications(days, limit),
     refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -43,5 +45,6 @@ export function useCumulativeStats(days: number = 7) {
     queryKey: dashboardKeys.cumulativeStats(days),
     queryFn: () => getCumulativeStats(days),
     refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 }

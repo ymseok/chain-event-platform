@@ -13,7 +13,8 @@ export function useIngestorInstances() {
   return useQuery({
     queryKey: ingestorKeys.instances(),
     queryFn: getIngestorInstances,
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 
