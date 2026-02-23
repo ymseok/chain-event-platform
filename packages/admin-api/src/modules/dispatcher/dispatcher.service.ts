@@ -44,23 +44,32 @@ export class DispatcherService {
     >();
     const claimedAppIds = new Set<string>();
 
-    for (const key of claimKeys) {
-      const appId = key.slice(CLAIM_KEY_PREFIX.length);
-      const [instanceId, ttl] = await Promise.all([
-        this.redis.get(key),
-        this.redis.ttl(key),
-      ]);
+    // Batch GET + TTL for all claim keys in a single pipeline round-trip
+    if (claimKeys.length > 0) {
+      const pipeline = this.redis.pipeline();
+      for (const key of claimKeys) {
+        pipeline.get(key);
+        pipeline.ttl(key);
+      }
+      const responses = await pipeline.exec();
 
-      if (!instanceId) continue;
+      for (let i = 0; i < claimKeys.length; i++) {
+        const key = claimKeys[i];
+        const appId = key.slice(CLAIM_KEY_PREFIX.length);
+        const [getErr, instanceId] = responses![i * 2];
+        const [ttlErr, ttl] = responses![i * 2 + 1];
 
-      claimedAppIds.add(appId);
-      const apps = instanceMap.get(instanceId) ?? [];
-      apps.push({
-        appId,
-        appName: appNameMap.get(appId) ?? appId,
-        leaseTtlRemaining: ttl > 0 ? ttl : 0,
-      });
-      instanceMap.set(instanceId, apps);
+        if (getErr || !instanceId) continue;
+
+        claimedAppIds.add(appId);
+        const apps = instanceMap.get(instanceId as string) ?? [];
+        apps.push({
+          appId,
+          appName: appNameMap.get(appId) ?? appId,
+          leaseTtlRemaining: (ttl as number) > 0 ? (ttl as number) : 0,
+        });
+        instanceMap.set(instanceId as string, apps);
+      }
     }
 
     const instances = Array.from(instanceMap.entries()).map(

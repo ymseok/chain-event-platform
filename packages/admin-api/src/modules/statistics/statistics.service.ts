@@ -3,6 +3,14 @@ import { PrismaService } from '../../database/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { StatisticsResponseDto, StatisticsQueryDto } from './dto/statistics-response.dto';
 
+interface DeliveryAggregation {
+  total: bigint;
+  successful: bigint;
+  failed: bigint;
+  pending: bigint;
+  avg_response_time: number | null;
+}
+
 @Injectable()
 export class StatisticsService {
   constructor(
@@ -20,32 +28,27 @@ export class StatisticsService {
     const startDate = query.startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const endDate = query.endDate || new Date();
 
-    // Get webhook logs for the period
-    const webhookLogs = await this.prisma.webhookLog.findMany({
-      where: {
-        webhook: { applicationId },
-        createdAt: { gte: startDate, lte: endDate },
-      },
-      select: {
-        status: true,
-        responseTimeMs: true,
-      },
-    });
+    // Aggregate delivery stats in SQL instead of loading all rows into memory
+    const [deliveryStats] = await this.prisma.$queryRaw<DeliveryAggregation[]>`
+      SELECT
+        COUNT(*)::bigint AS total,
+        COUNT(*) FILTER (WHERE wl.status = 'SUCCESS')::bigint AS successful,
+        COUNT(*) FILTER (WHERE wl.status = 'FAILED')::bigint AS failed,
+        COUNT(*) FILTER (WHERE wl.status = 'PENDING')::bigint AS pending,
+        AVG(wl.response_time_ms) AS avg_response_time
+      FROM webhook_logs wl
+      JOIN webhooks w ON w.id = wl.webhook_id
+      WHERE w.application_id = ${applicationId}::uuid
+        AND wl.created_at >= ${startDate}
+        AND wl.created_at <= ${endDate}
+    `;
 
-    const totalDeliveries = webhookLogs.length;
-    const successfulDeliveries = webhookLogs.filter((l) => l.status === 'SUCCESS').length;
-    const failedDeliveries = webhookLogs.filter((l) => l.status === 'FAILED').length;
-    const pendingDeliveries = webhookLogs.filter((l) => l.status === 'PENDING').length;
-
+    const totalDeliveries = Number(deliveryStats?.total ?? 0);
+    const successfulDeliveries = Number(deliveryStats?.successful ?? 0);
+    const failedDeliveries = Number(deliveryStats?.failed ?? 0);
+    const pendingDeliveries = Number(deliveryStats?.pending ?? 0);
+    const avgResponseTime = deliveryStats?.avg_response_time ?? 0;
     const successRate = totalDeliveries > 0 ? (successfulDeliveries / totalDeliveries) * 100 : 0;
-
-    const responseTimes = webhookLogs
-      .filter((l) => l.responseTimeMs !== null)
-      .map((l) => l.responseTimeMs as number);
-    const avgResponseTime =
-      responseTimes.length > 0
-        ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
-        : 0;
 
     // Get counts
     const [programCount, webhookCount, subscriptionCount] = await Promise.all([

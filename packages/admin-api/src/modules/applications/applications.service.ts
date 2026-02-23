@@ -61,7 +61,13 @@ export class ApplicationsService {
   ): Promise<ApplicationResponseDto> {
     const application = await this.findByIdOrThrow(id);
     const role = await this.validateAccess(userId, application, AppRole.GUEST, isRoot);
-    return ApplicationResponseDto.fromEntity(application, role ?? undefined);
+
+    // Root users bypass validateAccess (returns null), but still need their
+    // actual membership role for the response DTO.
+    const myRole =
+      role ?? (await this.membersService.getMemberRole(userId, application.id)) ?? undefined;
+
+    return ApplicationResponseDto.fromEntity(application, myRole);
   }
 
   async update(
@@ -74,7 +80,10 @@ export class ApplicationsService {
     const role = await this.validateAccess(userId, id, AppRole.OWNER, isRoot);
 
     const updated = await this.applicationsRepository.update(id, updateDto);
-    return ApplicationResponseDto.fromEntity(updated, role ?? undefined);
+
+    const myRole =
+      role ?? (await this.membersService.getMemberRole(userId, updated.id)) ?? undefined;
+    return ApplicationResponseDto.fromEntity(updated, myRole);
   }
 
   async remove(userId: string, id: string, isRoot: boolean): Promise<void> {
