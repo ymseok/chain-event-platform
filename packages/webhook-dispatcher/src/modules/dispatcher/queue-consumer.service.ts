@@ -19,7 +19,7 @@ import { AppClaimService } from './app-claim.service';
 interface ConsumerLoop {
   applicationId: string;
   running: boolean;
-  redis: Redis;
+  redisConnections: Redis[];
 }
 
 @Injectable()
@@ -30,6 +30,7 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
   private readonly brpopTimeoutSec: number;
   private readonly redisHost: string;
   private readonly redisPort: number;
+  private readonly concurrencyPerApp: number;
 
   constructor(
     private configService: ConfigService,
@@ -44,6 +45,10 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
     );
     this.redisHost = this.configService.get<string>('redis.host', 'localhost');
     this.redisPort = this.configService.get<number>('redis.port', 6379);
+    this.concurrencyPerApp = this.configService.get<number>(
+      'webhook.concurrencyPerApp',
+      5,
+    );
   }
 
   async onModuleInit() {
@@ -84,6 +89,8 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private handleConfigRefresh(signal: ConfigRefreshSignal) {
+    this.dispatcherService.invalidateCache();
+
     if (
       signal.type === 'APPLICATION_CREATED' ||
       signal.type === 'APPLICATION_UPDATED' ||
@@ -113,32 +120,43 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
   private startConsumer(app: ActiveApplication) {
     if (this.consumers.has(app.id)) return;
 
-    const redis = new Redis({
-      host: this.redisHost,
-      port: this.redisPort,
-      maxRetriesPerRequest: null,
-      retryStrategy: (times) => {
-        if (times > 10 || this.isShuttingDown) {
-          return null;
-        }
-        return Math.min(times * 100, 3000);
-      },
-    });
+    const redisConnections: Redis[] = [];
+    for (let i = 0; i < this.concurrencyPerApp; i++) {
+      redisConnections.push(
+        new Redis({
+          host: this.redisHost,
+          port: this.redisPort,
+          maxRetriesPerRequest: null,
+          retryStrategy: (times) => {
+            if (times > 10 || this.isShuttingDown) {
+              return null;
+            }
+            return Math.min(times * 100, 3000);
+          },
+        }),
+      );
+    }
 
     const consumer: ConsumerLoop = {
       applicationId: app.id,
       running: true,
-      redis,
+      redisConnections,
     };
 
     this.consumers.set(app.id, consumer);
 
-    this.consumeLoop(consumer).catch((error) => {
-      this.logger.error(
-        `Consumer loop error for ${app.id}: ${error.message}`,
-        error.stack,
-      );
-    });
+    for (let i = 0; i < redisConnections.length; i++) {
+      this.consumeLoop(consumer, redisConnections[i], i).catch((error) => {
+        this.logger.error(
+          `Consumer loop error for ${app.id} worker ${i}: ${error.message}`,
+          error.stack,
+        );
+      });
+    }
+
+    this.logger.log(
+      `Started ${redisConnections.length} consumer workers for app ${app.id}`,
+    );
   }
 
   private async stopConsumer(applicationId: string) {
@@ -148,20 +166,27 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
     consumer.running = false;
     this.consumers.delete(applicationId);
 
-    try {
-      await consumer.redis.quit();
-    } catch (error) {
-      this.logger.warn(`Error closing Redis for ${applicationId}`);
-    }
+    const quitPromises = consumer.redisConnections.map((redis) =>
+      redis.quit().catch(() => {
+        this.logger.warn(`Error closing Redis for ${applicationId}`);
+      }),
+    );
+    await Promise.all(quitPromises);
   }
 
-  private async consumeLoop(consumer: ConsumerLoop) {
+  private async consumeLoop(
+    consumer: ConsumerLoop,
+    redis: Redis,
+    workerIndex: number,
+  ) {
     const queueName = this.getQueueName(consumer.applicationId);
-    this.logger.log(`Starting consume loop for queue: ${queueName}`);
+    this.logger.log(
+      `Starting consume loop for queue: ${queueName} (worker ${workerIndex})`,
+    );
 
     while (consumer.running && !this.isShuttingDown) {
       try {
-        const result = await consumer.redis.brpop(
+        const result = await redis.brpop(
           queueName,
           this.brpopTimeoutSec,
         );
@@ -175,7 +200,7 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
         try {
           const message: EventQueueMessage = JSON.parse(messageStr);
           this.logger.debug(
-            `Received message from ${queueName}: subscription=${message.subscriptionId}`,
+            `Received message from ${queueName} (worker ${workerIndex}): subscription=${message.subscriptionId}`,
           );
 
           await this.dispatcherService.dispatch(message);
@@ -196,14 +221,16 @@ export class QueueConsumerService implements OnModuleInit, OnModuleDestroy {
         }
 
         this.logger.error(
-          `Error in consume loop for ${queueName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          `Error in consume loop for ${queueName} (worker ${workerIndex}): ${error instanceof Error ? error.message : 'Unknown error'}`,
         );
 
         await this.sleep(1000);
       }
     }
 
-    this.logger.log(`Consume loop stopped for queue: ${queueName}`);
+    this.logger.log(
+      `Consume loop stopped for queue: ${queueName} (worker ${workerIndex})`,
+    );
   }
 
   private sleep(ms: number): Promise<void> {

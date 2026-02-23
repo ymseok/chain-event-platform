@@ -385,11 +385,20 @@ export class AppClaimService implements OnModuleInit, OnModuleDestroy {
         `Self-rebalance: holding ${this.claimedAppIds.size}, target ${target}, releasing ${excess}`,
       );
 
-      const claimsWithTtl: { appId: string; ttl: number }[] = [];
-      for (const appId of this.claimedAppIds) {
-        const ttl = await this.redis.ttl(this.getClaimKey(appId));
-        claimsWithTtl.push({ appId, ttl });
+      // Batch TTL queries in a single pipeline round-trip
+      const claimedArray = [...this.claimedAppIds];
+      const pipeline = this.redis.pipeline();
+      for (const appId of claimedArray) {
+        pipeline.ttl(this.getClaimKey(appId));
       }
+      const ttlResults = await pipeline.exec();
+
+      const claimsWithTtl: { appId: string; ttl: number }[] = claimedArray.map(
+        (appId, i) => ({
+          appId,
+          ttl: (ttlResults![i][1] as number) ?? 0,
+        }),
+      );
       claimsWithTtl.sort((a, b) => a.ttl - b.ttl);
 
       for (let i = 0; i < excess; i++) {

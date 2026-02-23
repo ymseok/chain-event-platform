@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventQueueMessage } from '../../common/interfaces';
-import { SubscriptionRepository } from './subscription.repository';
+import {
+  SubscriptionRepository,
+  SubscriptionWithWebhook,
+} from './subscription.repository';
 import { WebhookLogRepository } from './webhook-log.repository';
 import { WebhookCallerService } from './webhook-caller.service';
 
 @Injectable()
 export class DispatcherService {
   private readonly logger = new Logger(DispatcherService.name);
+  private subscriptionCache = new Map<string, SubscriptionWithWebhook>();
 
   constructor(
     private subscriptionRepository: SubscriptionRepository,
@@ -14,11 +18,30 @@ export class DispatcherService {
     private webhookCallerService: WebhookCallerService,
   ) {}
 
+  /**
+   * Clear the in-memory subscription cache.
+   * Call this on config:refresh signals so stale data is evicted.
+   */
+  invalidateCache(): void {
+    const size = this.subscriptionCache.size;
+    this.subscriptionCache.clear();
+    if (size > 0) {
+      this.logger.log(`Subscription cache invalidated (${size} entries cleared)`);
+    }
+  }
+
   async dispatch(message: EventQueueMessage): Promise<void> {
     const { subscriptionId } = message;
 
-    const subscription =
-      await this.subscriptionRepository.findByIdWithWebhook(subscriptionId);
+    let subscription = this.subscriptionCache.get(subscriptionId);
+    if (!subscription) {
+      subscription =
+        (await this.subscriptionRepository.findByIdWithWebhook(subscriptionId)) ??
+        undefined;
+      if (subscription) {
+        this.subscriptionCache.set(subscriptionId, subscription);
+      }
+    }
 
     if (!subscription) {
       this.logger.warn(`Subscription not found: ${subscriptionId}`);
@@ -43,8 +66,11 @@ export class DispatcherService {
       message,
       subscription,
     );
+    const payloadString = JSON.stringify(payload);
     const headers = this.webhookCallerService.buildHeaders(
-      payload,
+      payloadString,
+      payload.id,
+      payload.timestamp,
       subscription.webhook.secret,
       subscription.webhook.headers,
     );
@@ -62,7 +88,7 @@ export class DispatcherService {
 
     const result = await this.webhookCallerService.callWithRetry(
       subscription.webhook.url,
-      payload,
+      payloadString,
       headers,
       subscription.webhook.retryPolicy,
     );

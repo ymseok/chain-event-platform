@@ -55,17 +55,18 @@ export class WebhookCallerService {
   }
 
   buildHeaders(
-    payload: WebhookPayload,
+    payloadString: string,
+    payloadId: string,
+    payloadTimestamp: number,
     secret: string,
     customHeaders?: Record<string, string> | null,
   ): WebhookHeaders {
-    const payloadString = JSON.stringify(payload);
     const signature = CryptoUtil.generateHmacSignature(payloadString, secret);
 
     const headers: WebhookHeaders = {
       'Content-Type': 'application/json',
-      'X-Webhook-Id': payload.id,
-      'X-Webhook-Timestamp': payload.timestamp.toString(),
+      'X-Webhook-Id': payloadId,
+      'X-Webhook-Timestamp': payloadTimestamp.toString(),
       'X-Webhook-Signature': `sha256=${signature}`,
     };
 
@@ -78,7 +79,7 @@ export class WebhookCallerService {
 
   async callWithRetry(
     url: string,
-    payload: WebhookPayload,
+    payloadString: string,
     headers: WebhookHeaders,
     retryPolicy?: RetryPolicy,
   ): Promise<WebhookCallResult> {
@@ -101,8 +102,9 @@ export class WebhookCallerService {
         const response = await fetch(url, {
           method: 'POST',
           headers: headers as Record<string, string>,
-          body: JSON.stringify(payload),
+          body: payloadString,
           signal: controller.signal,
+          keepalive: true,
         });
 
         clearTimeout(timeoutId);
