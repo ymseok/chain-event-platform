@@ -1,5 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, MinLength, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -19,4 +26,11 @@ export class RegisterDto {
   @MinLength(2)
   @MaxLength(100)
   name!: string;
+
+  @ApiPropertyOptional({
+    description: 'Invite token required when REGISTRATION_MODE is invite-only',
+  })
+  @IsOptional()
+  @IsString()
+  inviteToken?: string;
 }

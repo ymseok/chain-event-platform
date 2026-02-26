@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
+import Redis from 'ioredis';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -12,17 +14,52 @@ import {
   UnauthorizedException,
   DuplicateEntityException,
   EntityNotFoundException,
+  ForbiddenException,
 } from '../../common/exceptions/business.exception';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 
 @Injectable()
 export class AuthService {
+  private static readonly TOKEN_BLACKLIST_PREFIX = 'token:blacklist:';
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
+    const registrationMode = this.configService.get<string>(
+      'registrationMode',
+      'open',
+    );
+
+    // Check registration mode before proceeding
+    const userCount = await this.usersService.count();
+    const isFirstUser = userCount === 0;
+
+    if (!isFirstUser) {
+      if (registrationMode === 'closed') {
+        throw new ForbiddenException('Registration is currently closed');
+      }
+
+      if (registrationMode === 'invite-only') {
+        if (!registerDto.inviteToken) {
+          throw new ForbiddenException(
+            'Invite token is required for registration',
+          );
+        }
+        // Validate invite token against configured secret
+        const inviteSecret = this.configService.get<string>(
+          'REGISTRATION_INVITE_SECRET',
+        );
+        if (!inviteSecret || registerDto.inviteToken !== inviteSecret) {
+          throw new ForbiddenException('Invalid invite token');
+        }
+      }
+    }
+
     const existingUser = await this.usersService.findByEmail(registerDto.email);
     if (existingUser) {
       throw new DuplicateEntityException('User', 'email');
@@ -30,13 +67,13 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
     const user = await this.usersService.create({
-      ...registerDto,
+      email: registerDto.email,
+      name: registerDto.name,
       password: hashedPassword,
     });
 
-    // First registered user becomes root
-    const userCount = await this.usersService.count();
-    if (userCount === 1) {
+    // First registered user becomes root (race condition: check count before creation)
+    if (isFirstUser) {
       await this.usersService.setRoot(user.id, true);
     }
 
@@ -59,6 +96,11 @@ export class AuthService {
 
   async refreshToken(refreshToken: string): Promise<AuthResponseDto> {
     try {
+      // Check blacklist before verifying
+      if (await this.isTokenBlacklisted(refreshToken)) {
+        throw new UnauthorizedException('Refresh token has been revoked');
+      }
+
       const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
         secret: this.configService.get<string>('jwt.refreshSecret'),
       });
@@ -68,10 +110,20 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
+      // Blacklist the used refresh token (token rotation)
+      await this.blacklistToken(refreshToken);
+
       return this.generateTokens(user.id, user.email);
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    await this.blacklistToken(refreshToken);
   }
 
   async validateUser(
@@ -114,5 +166,41 @@ export class AuthService {
       tokenType: 'Bearer',
       expiresIn: this.configService.get<string>('jwt.expiresIn') || '15m',
     };
+  }
+
+  private async blacklistToken(token: string): Promise<void> {
+    const hash = createHash('sha256').update(token).digest('hex');
+    const key = `${AuthService.TOKEN_BLACKLIST_PREFIX}${hash}`;
+    // TTL matches refresh token expiry (default 7d = 604800s)
+    const ttlSeconds = this.parseExpiryToSeconds(
+      this.configService.get<string>('jwt.refreshExpiresIn', '7d'),
+    );
+    await this.redis.set(key, '1', 'EX', ttlSeconds);
+  }
+
+  private async isTokenBlacklisted(token: string): Promise<boolean> {
+    const hash = createHash('sha256').update(token).digest('hex');
+    const key = `${AuthService.TOKEN_BLACKLIST_PREFIX}${hash}`;
+    const result = await this.redis.exists(key);
+    return result === 1;
+  }
+
+  private parseExpiryToSeconds(expiry: string): number {
+    const match = expiry.match(/^(\d+)([smhd])$/);
+    if (!match) return 604800; // default 7 days
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    switch (unit) {
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 3600;
+      case 'd':
+        return value * 86400;
+      default:
+        return 604800;
+    }
   }
 }

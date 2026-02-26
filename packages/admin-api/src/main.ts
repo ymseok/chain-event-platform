@@ -11,10 +11,26 @@ async function bootstrap() {
 
   // Security
   app.use(helmet());
-  app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN', '*'),
-    credentials: true,
-  });
+
+  const corsOrigin = configService.get<string>('CORS_ORIGIN', '*');
+  const isProduction = configService.get<string>('NODE_ENV') === 'production';
+
+  if (corsOrigin === '*' && isProduction) {
+    // In production with wildcard origin, disable CORS (deny cross-origin requests)
+  } else if (corsOrigin === '*') {
+    app.enableCors({
+      origin: '*',
+      credentials: false,
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Internal-Key'],
+    });
+  } else {
+    const origins = corsOrigin.split(',').map((o) => o.trim());
+    app.enableCors({
+      origin: origins,
+      credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Internal-Key'],
+    });
+  }
 
   // Global prefix
   const apiPrefix = configService.get<string>('API_PREFIX', 'api/v1');

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -23,6 +24,12 @@ import configuration from './common/config/configuration';
 import { validationSchema } from './common/config/validation.schema';
 
 @Module({
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,

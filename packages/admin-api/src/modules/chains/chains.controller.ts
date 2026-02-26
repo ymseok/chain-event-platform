@@ -39,6 +39,7 @@ export class ChainsController {
   }
 
   @Get('admin')
+  @RootOnly()
   @ApiOperation({ summary: 'Get all blockchain networks (admin - includes INACTIVE)' })
   @ApiResponse({ status: 200, description: 'List of all chains', type: [ChainAdminResponseDto] })
   async findAllAdmin(): Promise<ChainAdminResponseDto[]> {
@@ -46,6 +47,7 @@ export class ChainsController {
   }
 
   @Get('admin/:id')
+  @RootOnly()
   @ApiOperation({ summary: 'Get blockchain network by ID (admin - full details)' })
   @ApiParam({ name: 'id', type: 'number' })
   @ApiResponse({ status: 200, description: 'Chain details', type: ChainAdminResponseDto })

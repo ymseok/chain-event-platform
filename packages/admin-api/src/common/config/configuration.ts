@@ -32,4 +32,7 @@ export default () => ({
     ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
   },
+
+  internalApiKey: process.env.INTERNAL_API_KEY,
+  registrationMode: process.env.REGISTRATION_MODE || 'open',
 });

@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { UsersModule } from '../users/users.module';
 
 @Module({
@@ -31,6 +32,10 @@ import { UsersModule } from '../users/users.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: InternalAuthGuard,
     },
   ],
   exports: [AuthService],

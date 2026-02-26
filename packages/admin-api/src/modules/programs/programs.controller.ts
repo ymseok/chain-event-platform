@@ -12,6 +12,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ProgramsService } from './programs.service';
 import { CreateProgramDto } from './dto/create-program.dto';
 import { UpdateProgramDto } from './dto/update-program.dto';
@@ -27,6 +28,7 @@ export class ProgramsController {
   constructor(private readonly programsService: ProgramsService) {}
 
   @Post('programs/verify-contract')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify on-chain contract existence and bytecode' })
   @ApiResponse({ status: 200, description: 'Contract verification result', type: ContractVerificationResultDto })

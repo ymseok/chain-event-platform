@@ -22,4 +22,9 @@ export const validationSchema = Joi.object({
 
   RATE_LIMIT_TTL: Joi.number().default(60),
   RATE_LIMIT_MAX: Joi.number().default(100),
+
+  INTERNAL_API_KEY: Joi.string().required(),
+  REGISTRATION_MODE: Joi.string()
+    .valid('open', 'invite-only', 'closed')
+    .default('open'),
 });
