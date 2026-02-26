@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState, ConfirmDialog } from '@/components/common';
 import { Switch } from '@/components/ui/switch';
 import {
+  useChains,
   useChainsAdmin,
   useDeleteChain,
   useCheckChainRpc,
@@ -38,7 +39,10 @@ export default function ChainsPage() {
   const user = useAuthStore((state) => state.user);
   const isRoot = user?.isRoot ?? false;
 
-  const { data: chains, isLoading } = useChainsAdmin();
+  const { data: adminChains, isLoading: isAdminLoading } = useChainsAdmin({ enabled: isRoot });
+  const { data: publicChains, isLoading: isPublicLoading } = useChains({ enabled: !isRoot });
+  const chains = isRoot ? adminChains : publicChains;
+  const isLoading = isRoot ? isAdminLoading : isPublicLoading;
   const deleteMutation = useDeleteChain();
   const checkRpcMutation = useCheckChainRpc();
   const updateMutation = useUpdateChain();
@@ -140,11 +144,11 @@ export default function ChainsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Chain</TableHead>
-                  <TableHead>RPC URL</TableHead>
-                  <TableHead className="w-28">Block Time</TableHead>
+                  {isRoot && <TableHead>RPC URL</TableHead>}
+                  {isRoot && <TableHead className="w-28">Block Time</TableHead>}
                   <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-32">Created</TableHead>
-                  <TableHead className="w-32"></TableHead>
+                  {isRoot && <TableHead className="w-32">Created</TableHead>}
+                  {isRoot && <TableHead className="w-32"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -158,12 +162,14 @@ export default function ChainsPage() {
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <code className="text-sm bg-muted px-2 py-1 rounded">
-                        {truncateMiddle(chain.rpcUrl, 25, 10)}
-                      </code>
-                    </TableCell>
-                    <TableCell>{chain.blockTime}s</TableCell>
+                    {isRoot && (
+                      <TableCell>
+                        <code className="text-sm bg-muted px-2 py-1 rounded">
+                          {truncateMiddle(chain.rpcUrl, 25, 10)}
+                        </code>
+                      </TableCell>
+                    )}
+                    {isRoot && <TableCell>{chain.blockTime}s</TableCell>}
                     <TableCell>
                       <Switch
                         checked={chain.enabled}
@@ -171,47 +177,49 @@ export default function ChainsPage() {
                         onCheckedChange={() => handleToggleEnabled(chain)}
                       />
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {formatDate(chain.createdAt)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleCheckRpc(chain)}
-                          disabled={!isRoot || checkingRpcId === chain.id}
-                          title={isRoot ? 'Check RPC connection' : 'Root access required'}
-                        >
-                          <RefreshCw
-                            className={`h-4 w-4 ${
-                              checkingRpcId === chain.id ? 'animate-spin' : ''
-                            }`}
-                          />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setChainToEdit(chain)}
-                          disabled={!isRoot}
-                          title={isRoot ? 'Edit chain' : 'Root access required'}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => setChainToDelete(chain)}
-                          disabled={!isRoot}
-                          title={isRoot ? 'Delete chain' : 'Root access required'}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {isRoot && (
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatDate(chain.createdAt)}
+                      </TableCell>
+                    )}
+                    {isRoot && (
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleCheckRpc(chain)}
+                            disabled={checkingRpcId === chain.id}
+                            title="Check RPC connection"
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 ${
+                                checkingRpcId === chain.id ? 'animate-spin' : ''
+                              }`}
+                            />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setChainToEdit(chain)}
+                            title="Edit chain"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => setChainToDelete(chain)}
+                            title="Delete chain"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

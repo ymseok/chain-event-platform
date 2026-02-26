@@ -19,7 +19,8 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 
 export default function IngestorsPage() {
   const [showRebalanceDialog, setShowRebalanceDialog] = useState(false);
-  const { data, isLoading, error } = useIngestorInstances();
+  const { data, isLoading, isRefetching, error, refetch } =
+    useIngestorInstances();
   const rebalanceMutation = useRebalanceIngestors();
 
   const user = useAuthStore((state) => state.user);
@@ -73,15 +74,27 @@ export default function IngestorsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Event Ingestors</h2>
-        <Button
-          onClick={() => setShowRebalanceDialog(true)}
-          disabled={!isRoot || totalInstances < 2}
-          size="sm"
-          title={!isRoot ? 'Root access required' : undefined}
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Rebalance
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isRefetching}
+          >
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`}
+            />
+            Refresh
+          </Button>
+          <Button
+            onClick={() => setShowRebalanceDialog(true)}
+            disabled={!isRoot || totalInstances < 2}
+            size="sm"
+            title={!isRoot ? 'Root access required' : undefined}
+          >
+            Rebalance
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

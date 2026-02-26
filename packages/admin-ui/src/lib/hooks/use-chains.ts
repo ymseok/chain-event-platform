@@ -20,10 +20,11 @@ export const chainKeys = {
   adminDetail: (id: number) => [...chainKeys.all, 'admin', 'detail', id] as const,
 };
 
-export function useChains() {
+export function useChains(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: chainKeys.lists(),
     queryFn: () => getChains(),
+    enabled: options?.enabled,
   });
 }
 
@@ -35,10 +36,11 @@ export function useChain(id: number) {
   });
 }
 
-export function useChainsAdmin() {
+export function useChainsAdmin(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: chainKeys.adminLists(),
     queryFn: () => getChainsAdmin(),
+    enabled: options?.enabled,
   });
 }
 
