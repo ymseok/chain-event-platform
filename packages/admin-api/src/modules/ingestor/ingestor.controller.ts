@@ -6,6 +6,7 @@ import {
   ApiParam,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { IngestorService } from './ingestor.service';
 import {
   IngestorSubscriptionsResponseDto,
@@ -13,15 +14,16 @@ import {
   IngestorInstancesResponseDto,
   RebalanceResponseDto,
 } from './dto';
-import { Public, RootOnly } from '../../common/decorators';
+import { InternalOnly, RootOnly } from '../../common/decorators';
 
+@SkipThrottle()
 @ApiTags('Ingestor')
 @Controller('ingestor')
 export class IngestorController {
   constructor(private readonly ingestorService: IngestorService) {}
 
   @Get('subscriptions')
-  @Public()
+  @InternalOnly()
   @ApiOperation({
     summary: 'Get all active chains and subscriptions for ingestor',
     description:
@@ -37,7 +39,7 @@ export class IngestorController {
   }
 
   @Get('subscriptions/chain/:chainId')
-  @Public()
+  @InternalOnly()
   @ApiOperation({
     summary: 'Get subscriptions for a specific chain',
     description: 'Returns all active subscriptions for a specific chain',

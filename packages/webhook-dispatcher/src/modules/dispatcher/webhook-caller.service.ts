@@ -9,7 +9,7 @@ import {
   RetryPolicy,
   DEFAULT_RETRY_POLICY,
 } from '../../common/interfaces';
-import { SubscriptionWithWebhook } from './subscription.repository';
+import { SubscriptionWithWebhook } from './admin-api.service';
 
 export interface WebhookCallResult {
   success: boolean;

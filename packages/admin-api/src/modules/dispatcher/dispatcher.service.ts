@@ -5,6 +5,8 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
   DispatcherInstancesResponseDto,
   DispatcherRebalanceResponseDto,
+  DispatcherApplicationDto,
+  DispatcherSubscriptionResponseDto,
 } from './dto';
 
 const CLAIM_KEY_PREFIX = 'dispatcher:claim:';
@@ -129,6 +131,54 @@ export class DispatcherService {
       released,
       totalApps,
       totalInstances,
+    };
+  }
+
+  async getActiveApplications(): Promise<DispatcherApplicationDto[]> {
+    return this.prisma.application.findMany({
+      select: { id: true, name: true },
+    });
+  }
+
+  async getApplicationById(
+    id: string,
+  ): Promise<DispatcherApplicationDto | null> {
+    return this.prisma.application.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+  }
+
+  async getSubscriptionById(
+    id: string,
+  ): Promise<DispatcherSubscriptionResponseDto | null> {
+    const subscription = await this.prisma.eventSubscription.findUnique({
+      where: { id },
+      include: { event: true, webhook: true },
+    });
+
+    if (!subscription) return null;
+
+    return {
+      id: subscription.id,
+      eventId: subscription.eventId,
+      webhookId: subscription.webhookId,
+      filterConditions: subscription.filterConditions,
+      status: subscription.status,
+      event: {
+        id: subscription.event.id,
+        name: subscription.event.name,
+        signature: subscription.event.signature,
+      },
+      webhook: {
+        id: subscription.webhook.id,
+        name: subscription.webhook.name,
+        url: subscription.webhook.url,
+        secret: subscription.webhook.secret,
+        headers: subscription.webhook.headers as Record<string, string> | null,
+        retryPolicy: subscription.webhook.retryPolicy as object,
+        status: subscription.webhook.status,
+      },
     };
   }
 }

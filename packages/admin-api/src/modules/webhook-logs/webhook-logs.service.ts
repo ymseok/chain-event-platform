@@ -7,7 +7,7 @@ import { PaginatedResponseDto } from '../../common/dto';
 import { EntityNotFoundException } from '../../common/exceptions';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 
-const WEBHOOK_QUEUE_PREFIX = 'webhook:app:';
+const WEBHOOK_STREAM_PREFIX = 'webhook:stream:';
 
 @Injectable()
 export class WebhookLogsService {
@@ -66,8 +66,8 @@ export class WebhookLogsService {
       throw new EntityNotFoundException('WebhookLog', id);
     }
 
-    const queueName = `${WEBHOOK_QUEUE_PREFIX}${log.webhook.applicationId}`;
-    await this.redis.lpush(queueName, JSON.stringify(log.eventPayload));
+    const streamName = `${WEBHOOK_STREAM_PREFIX}${log.webhook.applicationId}`;
+    await this.redis.xadd(streamName, '*', 'data', JSON.stringify(log.eventPayload));
 
     return { message: 'Retry has been queued' };
   }

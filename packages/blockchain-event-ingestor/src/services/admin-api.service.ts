@@ -17,6 +17,7 @@ export class AdminApiService {
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
+        'X-Internal-Key': config.adminApi.internalApiKey,
       },
     });
   }

@@ -1,6 +1,7 @@
 export interface Config {
   adminApi: {
     url: string;
+    internalApiKey: string;
   };
   redis: {
     host: string;
@@ -26,6 +27,7 @@ export function loadConfig(): Config {
   return {
     adminApi: {
       url: process.env.ADMIN_API_URL || 'http://localhost:3001/api/v1',
+      internalApiKey: process.env.INTERNAL_API_KEY || '',
     },
     redis: {
       host: process.env.REDIS_HOST || 'localhost',

@@ -1,65 +1,97 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventQueueMessage } from '../../common/interfaces';
 import {
-  SubscriptionRepository,
+  AdminApiService,
   SubscriptionWithWebhook,
-} from './subscription.repository';
+} from './admin-api.service';
 import { WebhookLogRepository } from './webhook-log.repository';
 import { WebhookCallerService } from './webhook-caller.service';
+
+export type DispatchResult = 'success' | 'non_retryable' | 'retryable_failure';
+
+interface CachedSubscription {
+  data: SubscriptionWithWebhook;
+  cachedAt: number;
+  stale: boolean;
+}
 
 @Injectable()
 export class DispatcherService {
   private readonly logger = new Logger(DispatcherService.name);
-  private subscriptionCache = new Map<string, SubscriptionWithWebhook>();
+  private subscriptionCache = new Map<string, CachedSubscription>();
+  private readonly cacheTtlMs = 300_000; // 5 min safety-net TTL
+  private pendingRefreshes = new Set<string>(); // prevent duplicate revalidations
 
   constructor(
-    private subscriptionRepository: SubscriptionRepository,
+    private adminApiService: AdminApiService,
     private webhookLogRepository: WebhookLogRepository,
     private webhookCallerService: WebhookCallerService,
   ) {}
 
   /**
-   * Clear the in-memory subscription cache.
-   * Call this on config:refresh signals so stale data is evicted.
+   * Mark all subscription cache entries as stale (soft invalidation).
+   * Stale entries are still served immediately but revalidated in the background.
    */
   invalidateCache(): void {
-    const size = this.subscriptionCache.size;
-    this.subscriptionCache.clear();
-    if (size > 0) {
-      this.logger.log(`Subscription cache invalidated (${size} entries cleared)`);
+    let count = 0;
+    for (const [, entry] of this.subscriptionCache) {
+      if (!entry.stale) {
+        entry.stale = true;
+        count++;
+      }
+    }
+    if (count > 0) {
+      this.logger.log(`Marked ${count} subscription cache entries as stale`);
     }
   }
 
-  async dispatch(message: EventQueueMessage): Promise<void> {
+  async dispatch(message: EventQueueMessage): Promise<DispatchResult> {
     const { subscriptionId } = message;
 
-    let subscription = this.subscriptionCache.get(subscriptionId);
-    if (!subscription) {
-      subscription =
-        (await this.subscriptionRepository.findByIdWithWebhook(subscriptionId)) ??
-        undefined;
-      if (subscription) {
-        this.subscriptionCache.set(subscriptionId, subscription);
+    let subscription: SubscriptionWithWebhook | undefined;
+    const cached = this.subscriptionCache.get(subscriptionId);
+
+    if (cached) {
+      const isExpired = Date.now() - cached.cachedAt > this.cacheTtlMs;
+
+      if (!cached.stale && !isExpired) {
+        // Fresh cache hit
+        subscription = cached.data;
+      } else {
+        // Stale or TTL-expired — return existing data, revalidate in background
+        subscription = cached.data;
+        this.revalidateInBackground(subscriptionId);
+      }
+    } else {
+      // Cache miss — synchronous fetch (unavoidable on first access)
+      const fetched = await this.adminApiService.getSubscriptionById(subscriptionId);
+      if (fetched) {
+        this.subscriptionCache.set(subscriptionId, {
+          data: fetched,
+          cachedAt: Date.now(),
+          stale: false,
+        });
+        subscription = fetched;
       }
     }
 
     if (!subscription) {
       this.logger.warn(`Subscription not found: ${subscriptionId}`);
-      return;
+      return 'non_retryable';
     }
 
     if (subscription.status !== 'ACTIVE') {
       this.logger.debug(
         `Subscription is not active: ${subscriptionId} (${subscription.status})`,
       );
-      return;
+      return 'non_retryable';
     }
 
     if (subscription.webhook.status !== 'ACTIVE') {
       this.logger.debug(
         `Webhook is not active: ${subscription.webhookId} (${subscription.webhook.status})`,
       );
-      return;
+      return 'non_retryable';
     }
 
     const payload = this.webhookCallerService.buildPayload(
@@ -104,6 +136,7 @@ export class DispatcherService {
       this.logger.log(
         `Webhook delivered successfully for subscription ${subscriptionId}`,
       );
+      return 'success';
     } else {
       await this.webhookLogRepository.markFailed(
         logId,
@@ -116,6 +149,35 @@ export class DispatcherService {
       this.logger.error(
         `Webhook delivery failed for subscription ${subscriptionId}: ${result.errorMessage}`,
       );
+      return 'retryable_failure';
     }
+  }
+
+  private revalidateInBackground(subscriptionId: string): void {
+    if (this.pendingRefreshes.has(subscriptionId)) return;
+    this.pendingRefreshes.add(subscriptionId);
+
+    this.adminApiService
+      .getSubscriptionById(subscriptionId)
+      .then((fetched) => {
+        if (fetched) {
+          this.subscriptionCache.set(subscriptionId, {
+            data: fetched,
+            cachedAt: Date.now(),
+            stale: false,
+          });
+        } else {
+          this.subscriptionCache.delete(subscriptionId);
+        }
+      })
+      .catch((error) => {
+        this.logger.warn(
+          `Background revalidation failed for ${subscriptionId}: ${error.message}`,
+        );
+        // Keep stale data on failure — next access will retry
+      })
+      .finally(() => {
+        this.pendingRefreshes.delete(subscriptionId);
+      });
   }
 }

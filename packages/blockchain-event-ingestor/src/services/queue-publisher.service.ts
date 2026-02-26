@@ -5,6 +5,8 @@ import { createLogger } from './logger.service';
 
 const logger = createLogger('QueuePublisher');
 
+const STREAM_PREFIX = 'webhook:stream:';
+
 export class QueuePublisherService {
   private redis: Redis;
 
@@ -31,34 +33,34 @@ export class QueuePublisherService {
   }
 
   /**
-   * Get queue name for an application
+   * Get stream name for an application
    */
-  private getQueueName(applicationId: string): string {
-    return `webhook:app:${applicationId}`;
+  private getStreamName(applicationId: string): string {
+    return `${STREAM_PREFIX}${applicationId}`;
   }
 
   /**
-   * Publish an event to the application's queue
+   * Publish an event to the application's stream
    */
   async publishEvent(
     applicationId: string,
     message: EventQueueMessage,
   ): Promise<void> {
-    const queueName = this.getQueueName(applicationId);
+    const streamName = this.getStreamName(applicationId);
     try {
-      await this.redis.lpush(queueName, JSON.stringify(message));
-      logger.debug(`Published event to queue ${queueName}`, {
+      await this.redis.xadd(streamName, '*', 'data', JSON.stringify(message));
+      logger.debug(`Published event to stream ${streamName}`, {
         subscriptionId: message.subscriptionId,
         blockNumber: message.metadata.blockNumber,
       });
     } catch (error) {
-      logger.error(`Failed to publish event to queue ${queueName}`, { error });
+      logger.error(`Failed to publish event to stream ${streamName}`, { error });
       throw error;
     }
   }
 
   /**
-   * Publish multiple events to their respective queues
+   * Publish multiple events to their respective streams
    */
   async publishEvents(
     events: Array<{ applicationId: string; message: EventQueueMessage }>,
@@ -67,13 +69,13 @@ export class QueuePublisherService {
 
     const pipeline = this.redis.pipeline();
     for (const { applicationId, message } of events) {
-      const queueName = this.getQueueName(applicationId);
-      pipeline.lpush(queueName, JSON.stringify(message));
+      const streamName = this.getStreamName(applicationId);
+      pipeline.xadd(streamName, '*', 'data', JSON.stringify(message));
     }
 
     try {
       await pipeline.exec();
-      logger.info(`Published ${events.length} events to queues`);
+      logger.info(`Published ${events.length} events to streams`);
     } catch (error) {
       logger.error('Failed to publish batch events', { error });
       throw error;
@@ -94,8 +96,8 @@ export class QueuePublisherService {
     const pipeline = this.redis.pipeline();
 
     for (const { applicationId, message } of events) {
-      const queueName = this.getQueueName(applicationId);
-      pipeline.lpush(queueName, JSON.stringify(message));
+      const streamName = this.getStreamName(applicationId);
+      pipeline.xadd(streamName, '*', 'data', JSON.stringify(message));
     }
 
     for (const { key, value } of progressUpdates) {
