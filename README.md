@@ -16,7 +16,10 @@ Chain Event Platform acts as middleware that monitors blockchain networks and di
 - **Webhook Dispatch**: Automatic event delivery via registered webhooks with retry logic
 - **Multi-Chain Support**: Designed to support multiple EVM-compatible networks
 - **Horizontal Scaling**: Claim-based partitioning allows multiple ingestor/dispatcher instances with subscription status control (ACTIVE/PAUSED)
+- **Redis Streams**: Durable event queuing with consumer groups, pending message recovery (XAUTOCLAIM), and dead-letter queues
 - **RBAC & Member Management**: Role-based access control (OWNER/MEMBER/GUEST) with an invitation system for collaborative application management
+- **Contract Verification**: On-chain bytecode comparison to verify smart contract deployment before registration
+- **Security Hardening**: Internal service authentication, refresh token blacklisting, registration mode control, and per-endpoint rate limiting
 - **Real-Time Dashboard**: Monitor applications, events, webhooks, and system health
 - **API Key Authentication**: Secure webhook delivery with hashed API keys
 
@@ -39,7 +42,7 @@ flowchart TB
         end
 
         subgraph Storage["Data Layer"]
-            REDIS[("Redis<br/>(Queue / Pub·Sub / Lease)")]
+            REDIS[("Redis<br/>(Streams / Pub·Sub / Lease)")]
             PG[("PostgreSQL<br/>(Config & Logs)")]
         end
 
@@ -49,24 +52,27 @@ flowchart TB
         end
 
         subgraph Dispatcher["Webhook Dispatcher"]
-            QC["Queue Consumer"]
+            QC["Stream Consumer"]
             WC["Webhook Caller"]
+            SM["Stream Maintenance"]
             AC2["App Claim Service"]
             QC --> WC
+            SM -.->|"XTRIM / DLQ Cleanup"| REDIS
             AC2 -.->|"Lease Management"| QC
         end
     end
 
     %% Connections
     BC -->|"JSON-RPC"| BP
-    EH -->|"Queue Events"| REDIS
-    REDIS -->|"Consume Events"| QC
+    EH -->|"XADD Events"| REDIS
+    REDIS -->|"XREADGROUP Events"| QC
     WC -->|"HTTP POST"| SUB
-    WC -->|"Delivery Logs"| PG
+    WC -->|"Delivery Logs"| REDIS
 
     API -->|"Config & Sync Status"| PG
     API <-->|"Pub/Sub Config Refresh"| REDIS
     UI -->|"REST API"| API
+    QC -->|"Subscriptions & Apps"| API
 
     %% Styling
     classDef external fill:#f9f9f9,stroke:#999
@@ -75,7 +81,7 @@ flowchart TB
     classDef admin fill:#e8f5e9,stroke:#2e7d32
 
     class BC,SUB external
-    class BP,EH,AC1,QC,WC,AC2 service
+    class BP,EH,AC1,QC,WC,SM,AC2 service
     class REDIS,PG storage
     class API,UI admin
 ```
@@ -87,8 +93,8 @@ sequenceDiagram
     autonumber
     participant BC as Blockchain Network
     participant BEI as Blockchain Event Ingestor
-    participant REDIS as Redis Queue
-    participant PG as PostgreSQL
+    participant REDIS as Redis Streams
+    participant API as Admin API
     participant WD as Webhook Dispatcher
     participant SUB as Subscriber Endpoint
 
@@ -105,27 +111,29 @@ sequenceDiagram
         BEI->>BEI: Match against active subscriptions
 
         alt Events Detected
-            BEI->>REDIS: LPUSH events:queue
+            BEI->>REDIS: XADD events:{appId}
         end
     end
 
     %% Webhook Dispatch
-    loop Process Event Queue
-        WD->>REDIS: BRPOP events:queue
+    loop Process Event Streams
+        WD->>REDIS: XREADGROUP events:{appId}
         REDIS-->>WD: Event Payload
 
-        WD->>PG: Lookup webhook config
-        PG-->>WD: URL, Headers
+        WD->>API: Lookup subscription & webhook config
+        API-->>WD: URL, Headers (cached)
 
         WD->>SUB: HTTP POST (event payload)
 
         alt Success (2xx)
             SUB-->>WD: 200 OK
-            WD->>PG: Log delivery (success)
+            WD->>REDIS: XACK + XADD webhook-logs
         else Failure (5xx / timeout)
             SUB-->>WD: Error
-            WD->>REDIS: Re-queue for retry
-            WD->>PG: Log delivery (failed)
+            Note over WD,REDIS: Pending (auto-recovered via XAUTOCLAIM)
+            WD->>REDIS: XADD webhook-logs (failed)
+        else Max retries exceeded
+            WD->>REDIS: XACK + XADD dlq:{appId}
         end
     end
 ```
@@ -148,7 +156,7 @@ sequenceDiagram
 - **Backend**: TypeScript, NestJS, Prisma ORM, ethers.js
 - **Frontend**: TypeScript, Next.js 14, Tailwind CSS, shadcn/ui, React Query, Recharts
 - **Database**: PostgreSQL 16
-- **Message Queue**: Redis 7 (Queue, Pub/Sub, Distributed Leasing)
+- **Message Queue**: Redis 7 (Streams, Pub/Sub, Distributed Leasing)
 - **Smart Contracts**: Solidity, Foundry (Forge, Anvil, Cast)
 - **Containerization**: Docker, Docker Compose
 
@@ -481,15 +489,19 @@ cd packages/demo-contract/ext_script
 | `WEBHOOK_TEST_TIMEOUT_MS` | Webhook test timeout | `5000` |
 | `RATE_LIMIT_TTL` | Rate limit window (seconds) | `60` |
 | `RATE_LIMIT_MAX` | Max requests per window | `100` |
+| `INTERNAL_API_KEY` | Shared key for internal service-to-service auth | - |
+| `REGISTRATION_MODE` | User registration mode (`open` / `invite-only` / `closed`) | `open` |
 
 ### Blockchain Event Ingestor
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ADMIN_API_URL` | Admin API URL for configuration | `http://localhost:3001/api/v1` |
+| `INTERNAL_API_KEY` | Shared key for internal service auth | - |
 | `REDIS_HOST` | Redis host | `localhost` |
 | `REDIS_PORT` | Redis port | `6379` |
 | `POLL_INTERVAL_MS` | Block polling interval | `1000` |
+| `STATUS_REPORT_INTERVAL_MS` | Ingestor status report interval | `30000` |
 | `LOG_LEVEL` | Logging level | `info` |
 
 ### Webhook Dispatcher
@@ -497,12 +509,18 @@ cd packages/demo-contract/ext_script
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NODE_ENV` | Environment mode | `development` |
+| `ADMIN_API_URL` | Admin API URL for subscription/app data | `http://localhost:3001/api/v1` |
+| `INTERNAL_API_KEY` | Shared key for internal service auth | - |
 | `DATABASE_URL` | PostgreSQL connection string | - |
 | `REDIS_HOST` | Redis host | `localhost` |
 | `REDIS_PORT` | Redis port | `6379` |
 | `WEBHOOK_TIMEOUT_MS` | Webhook HTTP request timeout | `10000` |
-| `CONCURRENCY_PER_APP` | Concurrent webhook calls per app | `5` |
-| `BRPOP_TIMEOUT_SEC` | Redis blocking pop timeout | `5` |
+| `CONCURRENCY_PER_APP` | Concurrent webhook calls per app | `1` |
+| `STREAM_BLOCK_TIMEOUT_MS` | XREADGROUP block timeout | `5000` |
+| `STREAM_MIN_IDLE_MS` | Min idle time before pending recovery | `120000` |
+| `STREAM_RECOVERY_INTERVAL_MS` | Pending message recovery interval | `10000` |
+| `STREAM_MAX_RECOVERY_PER_CYCLE` | Max messages recovered per cycle | `100` |
+| `STREAM_MAX_DELIVERY_COUNT` | Max delivery attempts before DLQ | `10` |
 
 ### Admin UI
 
@@ -569,17 +587,21 @@ chain-event-platform/
 │   │       │   ├── block-poller.service.ts  # Block polling & event detection
 │   │       │   ├── chain-manager.service.ts # Chain synchronization
 │   │       │   ├── config-subscriber.service.ts # Config refresh via Pub/Sub
-│   │       │   └── queue-publisher.service.ts   # Redis queue publishing
+│   │       │   └── queue-publisher.service.ts   # Redis Streams publishing (XADD)
+│   │       ├── utils/
+│   │       │   └── subscription-index.ts    # In-memory subscription index for fast lookup
 │   │       └── config/              # Configuration
 │   │
 │   ├── webhook-dispatcher/          # Webhook Delivery Service
 │   │   └── src/
 │   │       ├── modules/dispatcher/
+│   │       │   ├── admin-api.service.ts        # Admin API data access (subscriptions, apps)
 │   │       │   ├── app-claim.service.ts        # Claim-based partitioning
 │   │       │   ├── dispatcher.service.ts       # Main dispatch orchestration
-│   │       │   ├── queue-consumer.service.ts   # Redis queue consumption
+│   │       │   ├── queue-consumer.service.ts   # Redis Streams consumption (XREADGROUP)
+│   │       │   ├── stream-maintenance.service.ts # XTRIM retention & DLQ cleanup
 │   │       │   ├── webhook-caller.service.ts   # HTTP webhook calls
-│   │       │   └── webhook-log.repository.ts   # Delivery logging
+│   │       │   └── webhook-log.repository.ts   # Delivery logging via Streams
 │   │       └── common/              # Constants & config
 │   │
 │   ├── demo-contract/               # Foundry Smart Contracts
@@ -719,6 +741,7 @@ http://localhost:3001/api/docs
 | POST | `/api/v1/auth/register` | Register a new user |
 | POST | `/api/v1/auth/login` | Login and get JWT tokens |
 | POST | `/api/v1/auth/refresh` | Refresh access token |
+| POST | `/api/v1/auth/logout` | Logout and invalidate refresh token |
 | GET | `/api/v1/applications` | List user applications |
 | POST | `/api/v1/applications` | Create application |
 | GET | `/api/v1/applications/:appId/members` | List application members |
@@ -731,6 +754,7 @@ http://localhost:3001/api/docs
 | GET | `/api/v1/invites/pending` | Get my pending invites |
 | POST | `/api/v1/invites/:token/accept` | Accept an invite |
 | POST | `/api/v1/invites/:token/decline` | Decline an invite |
+| POST | `/api/v1/programs/verify-contract` | Verify on-chain contract bytecode |
 | GET | `/api/v1/programs` | List programs |
 | POST | `/api/v1/programs` | Register a smart contract program |
 | GET | `/api/v1/webhooks` | List webhooks |
